@@ -1,0 +1,10 @@
+name: Turnstile
+main: Turnstile.TurnstileMain
+version: 1.9.1
+author: Codisimus
+website: www.codisimus.com
+description: Charge players money/items to enter an area
+commands:
+  turnstile:
+    alias: ts
+    description: Main command, type for additional help/commands
