@@ -21,6 +21,8 @@ public class TurnstilePlayerListener extends PlayerListener{
     protected static String permission;
     protected static String locked;
     protected static String free;
+    protected static String oneWay;
+    protected static LinkedList<Turnstile> openTurnstiles = new LinkedList<Turnstile>();
 
     @Override
     public void onPlayerCommandPreprocess (PlayerCommandPreprocessEvent event) {
@@ -36,13 +38,6 @@ public class TurnstilePlayerListener extends PlayerListener{
                         player.sendMessage(permission);
                         return;
                     }
-//                    LinkedList<Turnstile> Turnstiles = SaveSystem.getTurnstiles();
-//                    for (Turnstile turnstile : Turnstiles) {
-//                        if (turnstile.gate.equals(block)) {
-//                            player.sendMessage("Turnstile "+turnstile.name+" already exists there");
-//                            return;
-//                        }
-//                    }
                     if (SaveSystem.findTurnstile(split[2]) != null) {
                         player.sendMessage("A Turnstile named "+split[2]+" already exists.");
                         return;
@@ -200,12 +195,13 @@ public class TurnstilePlayerListener extends PlayerListener{
                         player.sendMessage(permission);
                         return;
                     }
-                    if (turnstile.isOwner(player)) {
-                        SaveSystem.removeTurnstile(turnstile);
-                        player.sendMessage("Turnstile "+split[2]+" was deleted!");
-                    }
-                    else
+                    if (!turnstile.isOwner(player)) {
                         player.sendMessage("Only the Turnstile owner can do that.");
+                        return;
+                    }
+                    SaveSystem.removeTurnstile(turnstile);
+                    player.sendMessage("Turnstile "+split[2]+" was deleted!");
+                    SaveSystem.save();
                 }
                 else if (split[1].equals("free")) {
                     Turnstile turnstile = SaveSystem.findTurnstile(split[2]);
@@ -257,9 +253,8 @@ public class TurnstilePlayerListener extends PlayerListener{
                         event.getPlayer().sendMessage("Turnstile "+split[2]+" does not exsist.");
                         return;
                     }
-                    if (turnstile.isOwner(player)) {
+                    if (turnstile.isOwner(player))
                         player.sendMessage("Turnstile "+split[2]+" has earned "+turnstile.earned+"!");
-                    }
                     else
                         player.sendMessage("Only the Turnstile owner can do that.");
                 }
@@ -272,7 +267,7 @@ public class TurnstilePlayerListener extends PlayerListener{
                         LinkedList<Turnstile> turnstiles = SaveSystem.getTurnstiles();
                         for (Turnstile turnstile : turnstiles) {
                             LinkedList<Block> buttons = turnstile.buttons;
-                            for (Block button : buttons ) {
+                            for (Block button : buttons )
                                 if (button.getLocation().equals(block.getLocation())) {
                                     if (turnstile.isOwner(player))
                                         turnstile.collect(player);
@@ -280,13 +275,12 @@ public class TurnstilePlayerListener extends PlayerListener{
                                         player.sendMessage("Only the Turnstile owner can do that.");
                                     return;
                                 }
-                            }
                         }
                     }
                     player.sendMessage("You must target the turnstile chest you wish to collect from.");
                 }
                 else if (split[1].equals("list")) {
-                    if (!TurnstileMain.hasPermission(player, "admin.list")) {
+                    if (!TurnstileMain.hasPermission(player, "list")) {
                         player.sendMessage(permission);
                         return;
                     }
@@ -304,7 +298,7 @@ public class TurnstilePlayerListener extends PlayerListener{
                     player.sendMessage(sBuilder.toString());
                 }
                 else if (split[1].equals("info")) {
-                    if (!TurnstileMain.hasPermission(player, "admin.info")) {
+                    if (!TurnstileMain.hasPermission(player, "info")) {
                         player.sendMessage(permission);
                         return;
                     }
@@ -338,9 +332,8 @@ public class TurnstilePlayerListener extends PlayerListener{
                     turnstile.name = split[3];
                     player.sendMessage("Turnstile "+split[2]+" renamed to "+split[3]+".");
                 }
-                else if (split[1].equals("help")) {
+                else if (split[1].equals("help"))
                     throw new Exception();
-                }
             }
             catch (Exception e) {
                 player.sendMessage("§e     Turnstile Help Page:");
@@ -370,42 +363,64 @@ public class TurnstilePlayerListener extends PlayerListener{
 
     @Override
     public void onPlayerInteract (PlayerInteractEvent event) {
+        //Return if Action was arm flailing
         if (event.getAction().equals(Action.LEFT_CLICK_AIR) || event.getAction().equals(Action.RIGHT_CLICK_AIR))
             return;
+        
         Block block = event.getClickedBlock();
         Material mat = block.getType();
         Player player = event.getPlayer();
-        LinkedList<Turnstile> turnstiles = SaveSystem.getTurnstiles();
-        if (TurnstileMain.isSwitch(mat))
-            for (Turnstile turnstile : turnstiles) {
-                LinkedList<Block> buttons = turnstile.buttons;
-                for (Block button : buttons ) {
-                    if (button.getLocation().equals(block.getLocation()))
-                        if (!TurnstileMain.hasPermission(player, "open"))
-                            player.sendMessage(permission);
-                        else
-                            if (turnstile.isLocked(player.getWorld().getTime()))
-                                player.sendMessage(locked);
-                            else if (!turnstile.open && turnstile.isFree(player.getWorld().getTime())) {
-                                player.sendMessage(free);
-                                turnstile.open();
-                            }
-                            else if(block.getType().equals(Material.CHEST))
-                                turnstile.checkContents((Chest)block.getState(), player);
-                            else
-                                if (TurnstileMain.noFraud) {
-                                    turnstile.open();
-                                    if (turnstile.price == 0)
-                                        player.sendMessage(free);
-                                    else
-                                        player.sendMessage(TurnstileMain.displayCost.replaceAll("<price>", ""+turnstile.price));
-                                }
-                                else if (!turnstile.open && turnstile.checkBalance(player))
-                                    turnstile.open();
-                }
+        if (TurnstileMain.isSwitch(mat)) {
+            Turnstile turnstile = SaveSystem.findTurnstile(block);
+            
+            //Return if switch is not linked to a Turnstile
+            if (turnstile == null)
+                return;
+            
+            //Return if Turnstile Is already open
+            if (turnstile.open)
+                return;
+            
+            //Return if Player does not have permission to open Turnstiles
+            if (!TurnstileMain.hasPermission(player, "open")) {
+                player.sendMessage(permission);
+                return;
             }
+            
+            //Return if Player does not have access rights to Turnstile
+            if (!turnstile.hasAccess(player))
+                return;
+            
+            //Return if Turnstile is locked
+            if (turnstile.isLocked(player.getWorld().getTime())) {
+                player.sendMessage(locked);
+                return;
+            }
+            
+            //Return without charging if Turnstile is free
+            if (turnstile.isFree(player.getWorld().getTime())) {
+                player.sendMessage(free);
+                turnstile.open(block);
+                return;
+            }
+            
+            if (block.getType().equals(Material.CHEST)) {
+                turnstile.checkContents((Chest)block.getState(), player);
+                return;
+            }
+            
+            if (TurnstileMain.noFraud) {
+                turnstile.open(block);
+                if (turnstile.price == 0)
+                    player.sendMessage(free);
+                else
+                    player.sendMessage(TurnstileMain.displayCost.replaceAll("<price>", ""+turnstile.price));
+            }
+            else if (turnstile.checkBalance(player))
+                turnstile.open(block);
+        }
         else if (TurnstileMain.isDoor(block.getType()))
-            for (Turnstile turnstile : turnstiles) {
+            for (Turnstile turnstile : SaveSystem.getTurnstiles()) {
                 Block gate = turnstile.gate;
                 if (gate.getLocation().equals(block.getLocation()) || TurnstileMain.areNeighbors(gate, block))
                     event.setCancelled(true);
@@ -414,21 +429,47 @@ public class TurnstilePlayerListener extends PlayerListener{
 
     @Override
     public void onPlayerMove (PlayerMoveEvent event) {
-        Player player = event.getPlayer();
+        //Return if no Turnstiles are open
+        if (openTurnstiles.isEmpty())
+            return;
+        
         Block to = event.getTo().getBlock();
-        LinkedList<Turnstile> tempList = SaveSystem.getTurnstiles();
-        for (Turnstile turnstile : tempList) {
-            if (turnstile.open && (to == turnstile.gate)) {
-                turnstile.close();
-                if (TurnstileMain.noFraud)
-                    if (!turnstile.isFree(player.getWorld().getTime()))
-                        if (!turnstile.checkBalance(player)) {
-                            Location from = event.getFrom();
-                            from.setX(from.getBlockX()+.5);
-                            from.setY(from.getBlockY());
-                            from.setZ(from.getBlockZ()+.5);
-                            player.teleport(from);
-                        }
+        
+        //Check each open Turnstile
+        for (Turnstile turnstile : openTurnstiles) {
+            //Return if the Player did not step into this Turnstile's gate
+            if (to != turnstile.gate)
+                return;
+            
+            Location from = event.getFrom();
+            Player player = event.getPlayer();
+            
+            //Teleport Player back where they came from if they enter Turnstile backwards
+            if (Turnstile.oneWay && !turnstile.checkOneWay(from.getBlock())) {
+                from.setX(from.getBlockX()+.5);
+                from.setY(from.getBlockY());
+                from.setZ(from.getBlockZ()+.5);
+                player.teleport(from);
+                player.sendMessage(oneWay);
+                return;
+            }
+            
+            turnstile.close();
+            
+            //If NoFraud mode is off, Player already payed (so Return without recharging)
+            if (!TurnstileMain.noFraud)
+                return;
+            
+            //Return without charging if Turnstile is currently free
+            if (turnstile.isFree(player.getWorld().getTime()))
+                return;
+            
+            //Teleport Player back where they came from if they could not pay
+            if (!turnstile.checkBalance(player)) {
+                from.setX(from.getBlockX()+.5);
+                from.setY(from.getBlockY());
+                from.setZ(from.getBlockZ()+.5);
+                player.teleport(from);
             }
         }
     }

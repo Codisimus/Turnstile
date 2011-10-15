@@ -2,7 +2,6 @@
 package Turnstile;
 
 import TextPlayer.TextPlayer;
-import com.nijiko.permissions.PermissionHandler;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -22,6 +21,7 @@ import org.bukkit.event.Event.Priority;
 import org.bukkit.event.Event.Type;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import ru.tehkode.permissions.PermissionManager;
 
 /**
  *
@@ -30,7 +30,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class TurnstileMain extends JavaPlugin {
     protected static int cost = 0;
     protected static boolean op;
-    protected static PermissionHandler permissions;
+    protected static PermissionManager permissions;
     protected static PluginManager pm;
     protected static TextPlayer textPlayer;
     protected static Server server;
@@ -54,30 +54,20 @@ public class TurnstileMain extends JavaPlugin {
     @Override
     public void onEnable () {
         server = getServer();
+        pm = server.getPluginManager();
         checkFiles();
         loadConfig();
         SaveSystem.loadFromFile();
-        TurnstilePlayerListener playerListener = new TurnstilePlayerListener();
-        TurnstileBlockListener blockListener = new TurnstileBlockListener();
-        pm = server.getPluginManager();
-        pm.registerEvent(Type.PLAYER_COMMAND_PREPROCESS, playerListener, Priority.Normal, this);
-        pm.registerEvent(Type.PLAYER_MOVE, playerListener, Priority.Normal, this);
-        pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
-        pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
-        pm.registerEvent(Type.BLOCK_BREAK, blockListener, Priority.Normal, this);
-        pm.registerEvent(Event.Type.PLUGIN_ENABLE, new PluginListener(), Priority.Monitor, this);
+        registerEvents();
         System.out.println("Turnstile "+this.getDescription().getVersion()+" is enabled!");
     }
 
     /**
      * Makes sure all needed files exist
-     * Register.jar is for economy support
+     *
      */
     private void checkFiles() {
-        File file = new File("lib/Register.jar");
-        if (!file.exists() || file.length() < 43000)
-            moveFile("Register.jar");
-        file = new File("plugins/Turnstile/config.properties");
+        File file = new File("plugins/Turnstile/config.properties");
         if (!file.exists())
             moveFile("config.properties");
     }
@@ -93,10 +83,6 @@ public class TurnstileMain extends JavaPlugin {
             JarFile jar = new JarFile("plugins/Turnstile.jar");
             ZipEntry entry = jar.getEntry(fileName);
             String destination = "plugins/Turnstile/";
-            if (fileName.equals("Register.jar")) {
-                System.out.println("[Turnstile] Moving Files... Please Reload Server");
-                destination = "lib/";
-            }
             File file = new File(destination.substring(0, destination.length()-1));
             if (!file.exists())
                 file.mkdir();
@@ -134,6 +120,7 @@ public class TurnstileMain extends JavaPlugin {
         Register.economy = loadValue("Economy");
         PluginListener.useOP = Boolean.parseBoolean(loadValue("UseOP"));
         op = Boolean.parseBoolean(loadValue("UseOP"));
+        Turnstile.oneWay = Boolean.parseBoolean(loadValue("OneWayTurnstiles"));
         noFraud = Boolean.parseBoolean(loadValue("NoFraud"));
         timeOut = Integer.parseInt(loadValue("AutoCloseTimer"));
         useOpenFreeNode = Boolean.parseBoolean(loadValue("use'openfree'node"));
@@ -141,6 +128,7 @@ public class TurnstileMain extends JavaPlugin {
         TurnstilePlayerListener.permission = loadValue("PermissionMessage").replaceAll("&", "§");
         TurnstilePlayerListener.locked = loadValue("LockedMessage").replaceAll("&", "§");
         TurnstilePlayerListener.free = loadValue("FreeMessage").replaceAll("&", "§");
+        TurnstilePlayerListener.oneWay = loadValue("OneWayMessage").replaceAll("&", "§");
         correct = loadValue("CorrectItemMessage").replaceAll("&", "§");
         wrong = loadValue("WrongItemMessage").replaceAll("&", "§");
         notEnoughMoney = loadValue("NotEnoughMoneyMessage").replaceAll("&", "§");
@@ -151,8 +139,10 @@ public class TurnstileMain extends JavaPlugin {
     }
     
     /**
-     * Prints error for missing values
-     * 
+     * Loads the given key and prints error if the key is missing
+     *
+     * @param key The key to be loaded
+     * @return The String value of the loaded key
      */
     private String loadValue(String key) {
         if (!p.containsKey(key)) {
@@ -160,6 +150,22 @@ public class TurnstileMain extends JavaPlugin {
             System.err.println("[Turnstile] Please regenerate config file");
         }
         return p.getProperty(key);
+    }
+    
+    /**
+     * Registers events for the Turnstile Plugin
+     *
+     */
+    private void registerEvents() {
+        TurnstilePlayerListener playerListener = new TurnstilePlayerListener();
+        TurnstileBlockListener blockListener = new TurnstileBlockListener();
+        pm.registerEvent(Event.Type.PLUGIN_ENABLE, new PluginListener(), Priority.Monitor, this);
+        pm.registerEvent(Type.WORLD_LOAD, new TurnstileWorldListener(), Priority.Normal, this);
+        pm.registerEvent(Type.PLAYER_COMMAND_PREPROCESS, playerListener, Priority.Normal, this);
+        pm.registerEvent(Type.PLAYER_MOVE, playerListener, Priority.Normal, this);
+        pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
+        pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
+        pm.registerEvent(Type.BLOCK_BREAK, blockListener, Priority.Normal, this);
     }
     
     /**
@@ -172,11 +178,9 @@ public class TurnstileMain extends JavaPlugin {
     public static boolean hasPermission(Player player, String type) {
         if (permissions != null)
             return permissions.has(player, "turnstile."+type);
-        else
-            if (type.equals("open"))
-                return true;
-            else
-                return player.isOp();
+        else if (type.equals("open"))
+            return true;
+        return player.isOp();
     }
     
     /**

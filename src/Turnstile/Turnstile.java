@@ -11,6 +11,7 @@ import org.bukkit.block.Chest;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.material.Button;
 import org.bukkit.material.Door;
 
 /**
@@ -18,6 +19,7 @@ import org.bukkit.material.Door;
  * @author Codisimus
  */
 public class Turnstile {
+    protected static boolean oneWay;
     protected String name;
     protected String access = "public";
     protected double earned = 0;
@@ -25,6 +27,7 @@ public class Turnstile {
     protected String item = "0";
     protected int amount = 0;
     protected boolean open = false;
+    private int openedFrom;
     protected String owner;
     protected Block gate;
     protected LinkedList<Block> buttons = new LinkedList<Block>();
@@ -68,34 +71,60 @@ public class Turnstile {
         this.lockedEnd = lockedEnd;
         this.freeStart = freeStart;
         this.freeEnd = freeEnd;
-        //Check for door material
-        if (TurnstileMain.isDoor(gate.getType())) {
-            Door door = (Door)gate.getState().getData();
-            //Swing door shut
-            if (door.isOpen()) {
-                Block neighbor;
-                if (door.isTopHalf())
-                    neighbor = gate.getRelative(BlockFace.DOWN);
-                else
-                    neighbor = gate.getRelative(BlockFace.UP);
-                gate.setData((byte)(gate.getState().getData().getData()^4));
-                neighbor.setData((byte)(neighbor.getState().getData().getData()^4));
-            }
-        }
-        else
+        
+        //Make sure gate is present
+        if (gate.getTypeId() == 0)
             gate.setType(Material.FENCE);
+        
+        if (gate.getTypeId() == 85)
+            return;
+        
+        Door door = (Door)gate.getState().getData();
+        
+        //Swing door shut
+        if (!door.isOpen())
+            return;
+        
+        Block neighbor;
+        if (door.isTopHalf())
+            neighbor = gate.getRelative(BlockFace.DOWN);
+        else
+            neighbor = gate.getRelative(BlockFace.UP);
+        gate.setData((byte)(gate.getState().getData().getData()^4));
+        neighbor.setData((byte)(neighbor.getState().getData().getData()^4));
     }
 
     /**
      * Constructs a new Turnstile
      * 
      * @param name The name of the Turnstile which cannot already exist
-     * @param creator The player who is creating the Turnstile and also the default owner
+     * @param creator The Player who is creating the Turnstile and also the default owner
      */
     public Turnstile (String name, Player creator) {
         this.name = name;
         this.owner = creator.getName();
         gate = creator.getTargetBlock(null, 100);
+    }
+    
+    /**
+     * Checks if Player is attempting to enter Turnstile backwards
+     * 
+     * @param chest The Chest being activated
+     * @return false if Player is attempting to enter Turnstile backwards
+     */
+    public boolean checkOneWay(Block from) {
+        switch (openedFrom) {
+            case 0:
+                return from.getX() < gate.getX();
+            case 1:
+                return from.getX() > gate.getX();
+            case 2:
+                return from.getZ() < gate.getZ();
+            case 3:
+                return from.getZ() > gate.getZ();
+            default:
+                return true;
+        }
     }
 
     /**
@@ -105,11 +134,6 @@ public class Turnstile {
      * @param player The Player who activated the Chest
      */
     public void checkContents(Chest chest, Player player) {
-        //Cancels the event if the Turnstile is already open
-        if (open)
-            return;
-        if (!hasAccess(player))
-            return;
         Inventory inventory = chest.getInventory();
         boolean flagForOpen = false;
         if (item.contains(".")) {
@@ -127,9 +151,8 @@ public class Turnstile {
                             flagForDelete.add(i);
                         }
                 if (total >= amount) {
-                    for (int stack : flagForDelete) {
+                    for (int stack : flagForDelete)
                         inventory.clear(stack);
-                    }
                     flagForOpen = true;
                     break;
                 }
@@ -141,7 +164,7 @@ public class Turnstile {
         }
         if (flagForOpen) {
             player.sendMessage(TurnstileMain.correct);
-            open();
+            open(chest.getBlock());
             earned++;
         }
         else
@@ -155,27 +178,25 @@ public class Turnstile {
      * @param player The Player who is activating the Button
      */
     public boolean checkBalance(Player player) {
-        if (!hasAccess(player))
-            return false;
-        if (!TurnstileMain.useMakeFreeNode || !TurnstileMain.hasPermission(player, "openfree")) {
-            if (price > 0)
-                if (!Register.charge(player.getName(), owner, price)) {
-                    player.sendMessage(TurnstileMain.notEnoughMoney);
-                    return false;
-                }
-                else {
-                    String msg = TurnstileMain.open.replaceAll("<price>", ""+price);
-                    player.sendMessage(msg);
-                    earned = earned + price;
-                    TextPlayer TextPlayer = TurnstileMain.textPlayer;
-                    if (TextPlayer != null)
-                        TextPlayer.sendMsg(null, TextPlayer.getUser(owner), earned+"");
-                }
-            else if (price == -411) {
-                Register.clearBalance(player.getName());
-                player.sendMessage(TurnstileMain.balanceCleared);
-            }
+        if (TurnstileMain.useOpenFreeNode && TurnstileMain.hasPermission(player, "openfree"))
+            return true;
+        if (price == -411) {
+            Register.clearBalance(player.getName());
+            player.sendMessage(TurnstileMain.balanceCleared);
+            return true;
         }
+        if (price <= 0)
+            return true;
+        if (!Register.charge(player.getName(), owner, price)) {
+            player.sendMessage(TurnstileMain.notEnoughMoney);
+            return false;
+        }
+        String msg = TurnstileMain.open.replaceAll("<price>", ""+price);
+        player.sendMessage(msg);
+        earned = earned + price;
+        TextPlayer TextPlayer = TurnstileMain.textPlayer;
+        if (TextPlayer != null)
+            TextPlayer.sendMsg(null, TextPlayer.getUser(owner), earned+"");
         return true;
     }
     
@@ -186,20 +207,21 @@ public class Turnstile {
      * @param player The Player who is activating the Button
      * @return true if the play has access rights
      */
-    private boolean hasAccess(Player player) {
-        if (access.equals("private")) {
+    protected boolean hasAccess(Player player) {
+        //Return if Turnstile is public
+        if (access.equals("public"))
+            return true;
+        
+        if (access.equals("private"))
             if (!isOwner(player)) {
                 player.sendMessage(TurnstileMain.privateTurnstile);
                 return false;
             }
+        else if (!TurnstileMain.permissions.getUser(player).inGroup(access)) {
+            player.sendMessage(TurnstileMain.privateTurnstile);
+            return false;
         }
-        if (!access.equals("public")) {
-            String world = player.getWorld().getName();
-            if (!TurnstileMain.permissions.inGroup(world, player.getName(), access)) {
-                player.sendMessage(TurnstileMain.privateTurnstile);
-                return false;
-            }
-        }
+        
         return true;
     }
 
@@ -207,8 +229,11 @@ public class Turnstile {
      * Opens the Turnstile
      *
      */
-    public void open() {
+    public void open(Block block) {
         open = true;
+        setOpenedFrom(block);
+        TurnstilePlayerListener.openTurnstiles.add(this);
+        
         //Starts a new thread
         Thread thread = new Thread() {
             @Override
@@ -217,10 +242,12 @@ public class Turnstile {
                 if (TurnstileMain.isDoor(gate.getType())) {
                     Door door = (Door)gate.getState().getData();
                     Block neighbor;
+                    
                     if (door.isTopHalf())
                         neighbor = gate.getRelative(BlockFace.DOWN);
                     else
                         neighbor = gate.getRelative(BlockFace.UP);
+                    
                     //Swing door open
                     if (!door.isOpen()) {
                         gate.setData((byte)(gate.getState().getData().getData()^4));
@@ -229,16 +256,19 @@ public class Turnstile {
                 }
                 else
                     gate.setType(Material.AIR);
+                
                 if (TurnstileMain.timeOut == 0)
                     return;
                 instance++;
                 int temp = instance;
+                
                 //Leaves gate open for specific amount of time
                 try {
                     Thread.currentThread().sleep(TurnstileMain.timeOut * 1000);
                 }
                 catch (InterruptedException ex) {
                 }
+                
                 if (open && (temp == instance))
                     close();
             }
@@ -255,10 +285,12 @@ public class Turnstile {
         if (TurnstileMain.isDoor(gate.getType())) {
             Door door = (Door)gate.getState().getData();
             Block neighbor;
+            
             if (door.isTopHalf())
                 neighbor = gate.getRelative(BlockFace.DOWN);
             else
                 neighbor = gate.getRelative(BlockFace.UP);
+            
             //Swing door shut
             if (door.isOpen()) {
                 gate.setData((byte)(gate.getState().getData().getData()^4));
@@ -267,7 +299,9 @@ public class Turnstile {
         }
         else
             gate.setType(Material.FENCE);
+        
         open = false;
+        TurnstilePlayerListener.openTurnstiles.remove(this);
     }
     
     /**
@@ -277,6 +311,7 @@ public class Turnstile {
      */
     public void collect(Player player) {
         PlayerInventory sack = player.getInventory();
+        
         //Loops unless inventory is full
         while (sack.firstEmpty() >= 0) {
             //Check for additional items that were earned
@@ -284,20 +319,18 @@ public class Turnstile {
                 player.sendMessage("There are no more items to collect");
                 return;
             }
-            else {
-                int itemType = Integer.parseInt(item);
-                short itemDamage = 0;
-                if (item.contains(".")) {
-                    int index = item.indexOf('.');
-                    itemType = Integer.parseInt(item.substring(0, index));
-                    itemDamage = Short.parseShort(item.substring(index+1));
-                }
-                ItemStack itemStack = new ItemStack(itemType, amount);
-                if (itemDamage != 0)
-                    itemStack.setDurability(itemDamage);
-                sack.setItem(sack.firstEmpty(), itemStack);
-                earned--;
+            int itemType = Integer.parseInt(item);
+            short itemDamage = 0;
+            if (item.contains(".")) {
+                int index = item.indexOf('.');
+                itemType = Integer.parseInt(item.substring(0, index));
+                itemDamage = Short.parseShort(item.substring(index+1));
             }
+            ItemStack itemStack = new ItemStack(itemType, amount);
+            if (itemDamage != 0)
+                itemStack.setDurability(itemDamage);
+            sack.setItem(sack.firstEmpty(), itemStack);
+            earned--;
         }
         player.sendMessage("Inventory full");
     }
@@ -309,13 +342,12 @@ public class Turnstile {
      * @return true if the Turnstile is currently locked
      */
     public boolean isLocked(long time) {
-        if (lockedStart < lockedEnd)
-            if (lockedStart < time && time < lockedEnd)
-                return true;
-        else if (lockedStart > lockedEnd)
-            if (lockedStart < time || time < lockedEnd)
-                return true;
-        return false;
+        if (lockedStart == lockedEnd)
+            return false;
+        else if (lockedStart < lockedEnd)
+            return lockedStart < time && time < lockedEnd;
+        else
+            return lockedStart < time || time < lockedEnd;
     }
 
     /**
@@ -325,13 +357,12 @@ public class Turnstile {
      * @return true if the Turnstile is currently free
      */
     public boolean isFree(long time) {
-        if (freeStart < freeEnd)
-            if (freeStart < time && time < freeEnd)
-                return true;
-        else if (freeStart > freeEnd)
-            if (freeStart < time || time < freeEnd)
-                return true;
-        return false;
+        if (freeStart == freeEnd)
+            return false;
+        else if (freeStart < freeEnd)
+            return freeStart < time && time < freeEnd;
+        else
+            return freeStart < time || time < freeEnd;
     }
 
     /**
@@ -342,13 +373,62 @@ public class Turnstile {
      * @return true if the player is an owner
      */
     protected boolean isOwner(Player player) {
+        //Return true if Player is the owner
         if (player.getName().equalsIgnoreCase(owner))
             return true;
-        if (owner.substring(0, 5).equalsIgnoreCase("bank:"))
-            if (Register.isBankOwner(owner.substring(5), player.getName()))
-                return true;
+        
+        //Return true if Player is the owner of the Turnstile's bank
+        if (owner.substring(0, 5).equalsIgnoreCase("bank:") && Register.isBankOwner(owner.substring(5), player.getName()))
+            return true;
+        
+        //Return true if Player has the Permission to ignore owner rights
         if (TurnstileMain.hasPermission(player, "admin.ignoreowner"))
             return true;
+        
         return false;
+    }
+    
+    /**
+     * Discovers the type of a switch
+     * Sets the direction that the Turnstile is opened from
+     * 
+     * @param block The given switch
+     */
+    protected void setOpenedFrom(Block block) {
+        //Return is Turnstiles are not one way
+        if (!oneWay)
+            return;
+        
+        int id = block.getTypeId();
+        switch (id) {
+            case 54: //Material == Chest
+                openedFrom = -1; //OneWay does not effect paying with items
+                break;
+            case 77: //Material == Stone Button
+                Button button = (Button)block.getState().getData();
+                BlockFace face = button.getFacing();
+                if (face.equals(BlockFace.NORTH))
+                    openedFrom = 0;
+                else if (face.equals(BlockFace.SOUTH))
+                    openedFrom = 1;
+                else if (face.equals(BlockFace.EAST))
+                    openedFrom = 2;
+                else if (face.equals(BlockFace.WEST))
+                    openedFrom = 3;
+                else
+                    openedFrom = -1;
+                break;
+            default: //Material == Stone Plate || Wood Plate
+                if (block.getX() < gate.getX())
+                    openedFrom = 0;
+                else if (block.getX() > gate.getX())
+                    openedFrom = 1;
+                else if (block.getZ() < gate.getZ())
+                    openedFrom = 2;
+                else if (block.getZ() > gate.getZ())
+                    openedFrom = 3;
+                else
+                    openedFrom = -1;
+        }
     }
 }

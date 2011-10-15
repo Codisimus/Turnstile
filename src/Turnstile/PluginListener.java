@@ -2,10 +2,9 @@
 package Turnstile;
 
 import org.bukkit.event.server.ServerListener;
-import com.nijikokun.bukkit.Permissions.Permissions;
-import com.nijikokun.register.payment.Methods;
+import com.codisimus.turnstile.register.payment.Methods;
 import org.bukkit.event.server.PluginEnableEvent;
-import org.bukkit.plugin.Plugin;
+import ru.tehkode.permissions.bukkit.PermissionsEx;
 
 /**
  * Checks for plugins whenever one is enabled
@@ -13,34 +12,12 @@ import org.bukkit.plugin.Plugin;
  */
 public class PluginListener extends ServerListener {
     public PluginListener() { }
-    private Methods methods = new Methods();
     protected static Boolean useOP;
 
     @Override
     public void onPluginEnable(PluginEnableEvent event) {
-        if (!TurnstileMain.op) {
-            if (TurnstileMain.permissions == null && !useOP) {
-                Plugin permissions = TurnstileMain.pm.getPlugin("Permissions");
-                if (permissions != null) {
-                    TurnstileMain.permissions = ((Permissions)permissions).getHandler();
-                    System.out.println("[Turnstile] Successfully linked with Permissions!");
-                }
-            }
-        }
-        if (Register.economy == null)
-            System.err.println("[Turnstile] Config file outdated, Please regenerate");
-        else if (!Register.economy.equalsIgnoreCase("none") && !methods.hasMethod()) {
-            try {
-                methods.setMethod(TurnstileMain.pm.getPlugin(Register.economy));
-                if (methods.hasMethod()) {
-                    Register.econ = methods.getMethod();
-                    System.out.println("[Turnstile] Successfully linked with "+
-                            Register.econ.getName()+" "+Register.econ.getVersion()+"!");
-                }
-            }
-            catch (Exception e) {
-            }
-        }
+        linkPermissions();
+        linkEconomy();
 //        if (TurnstileMain.TextPlayer == null) {
 //            Plugin TextPlayer = TurnstileMain.pm.getPlugin("TextPlayer");
 //            if (TextPlayer != null) {
@@ -48,5 +25,55 @@ public class PluginListener extends ServerListener {
 //                System.out.println("Turnstile Successfully linked with TextPlayer!");
 //            }
 //        }
+    }
+
+    /**
+     * Find and link a Permission plugin
+     *
+     */
+    private void linkPermissions() {
+        //Return if we have already have a permissions plugin
+        if (TurnstileMain.permissions != null)
+            return;
+
+        //Return if PermissionsEx is not enabled
+        if (!TurnstileMain.pm.isPluginEnabled("PermissionsEx"))
+            return;
+
+        //Return if OP permissions will be used
+        if (useOP)
+            return;
+
+        TurnstileMain.permissions = PermissionsEx.getPermissionManager();
+        System.out.println("[Turnstile] Successfully linked with PermissionsEx!");
+    }
+
+    /**
+     * Find and link an Economy plugin
+     *
+     */
+    private void linkEconomy() {
+        //Return if we already have an Economy plugin
+        if (Methods.hasMethod())
+            return;
+
+        //Return if no Economy is wanted
+        if (Register.economy.equalsIgnoreCase("none"))
+            return;
+
+        //Set preferred plugin if there is one
+        if (!Register.economy.equalsIgnoreCase("auto"))
+            Methods.setPreferred(Register.economy);
+
+        Methods.setMethod(TurnstileMain.pm);
+
+        //Reset Methods if the preferred Economy was not found
+        if (!Register.economy.equalsIgnoreCase("auto") && !Methods.getMethod().getName().equalsIgnoreCase(Register.economy)) {
+            Methods.reset();
+            return;
+        }
+
+        Register.econ = Methods.getMethod();
+        System.out.println("[Turnstile] Successfully linked with "+Register.econ.getName()+" "+Register.econ.getVersion()+"!");
     }
 }

@@ -1,8 +1,8 @@
 
 package Turnstile;
 
-import com.nijikokun.register.payment.Method;
-import com.nijikokun.register.payment.Method.MethodAccount;
+import com.codisimus.turnstile.register.payment.Method;
+import com.codisimus.turnstile.register.payment.Method.MethodAccount;
 
 /**
  *
@@ -22,14 +22,22 @@ public class Register {
      */
     protected static boolean charge(String player, String owner, double price) {
         MethodAccount account = econ.getAccount(player);
+        
         if (!account.hasEnough(price))
             return false;
+        
         account.subtract(price);
-        if (owner != null && !owner.equalsIgnoreCase("server"))
-            if (owner.startsWith("bank:"))
-                econ.getBankAccount(owner.substring(5), null).add(price);
-            else
-                econ.getAccount(owner).add(price);
+        
+        if (owner == null)
+            return true;
+        
+        if (owner.equalsIgnoreCase("server"))
+            return true;
+        
+        if (owner.startsWith("bank:"))
+            econ.getBankAccount(owner.substring(5), null).add(price);
+        else
+            econ.getAccount(owner).add(price);
         return true;
     }
 

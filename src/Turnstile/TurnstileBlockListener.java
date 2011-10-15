@@ -43,11 +43,10 @@ public class TurnstileBlockListener extends BlockListener {
         if (TurnstileMain.isSwitch(mat))
             for (Turnstile turnstile : Turnstiles) {
                 LinkedList<Block> buttons = turnstile.buttons;
-                for (Block button : buttons ) {
+                for (Block button : buttons )
                     if (button.getLocation().equals(block.getLocation()))
                         if (!turnstile.isOwner(player))
                             event.setCancelled(true);
-                }
             }
         else if (TurnstileMain.isDoor(mat))
             for (Turnstile turnstile : Turnstiles) {
@@ -57,10 +56,9 @@ public class TurnstileBlockListener extends BlockListener {
                         event.setCancelled(true);
             }
         else if (mat.equals(Material.FENCE))
-            for (Turnstile turnstile : Turnstiles) {
+            for (Turnstile turnstile : Turnstiles)
                 if (block.getLocation().equals(turnstile.gate.getLocation()))
                     if (!turnstile.isOwner(player))
                         event.setCancelled(true);
-            }
     }
 }
