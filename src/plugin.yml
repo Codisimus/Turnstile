@@ -1,10 +1,55 @@
 name: Turnstile
-main: Turnstile.TurnstileMain
+main: com.codisimus.plugins.turnstile.TurnstileMain
 version: 2.0.3
 author: Codisimus
 website: www.codisimus.com
 description: Charge players money/items to enter an area
+startup: postworld
 commands:
   turnstile:
+    description: Used to setup and manage Turnstiles
+    usage: /<command> help
     alias: ts
-    description: Main command, type for additional help/commands
+permissions:
+  turnstile.open:
+    default: true
+    description: Needed to open a Turnstile
+  turnstile.make:
+    default: op
+    description: Needed to make a Turnstile (/ts make)
+  turnstile.set.price:
+    default: op
+    description: Needed to set the price of a Turnstile (/ts price)
+  turnstile.set.owner:
+    default: op
+    description: Needed to the owner of a Turnstile (/ts owner)
+  turnstile.set.access:
+    default: op
+    description: Needed to set who has access to a Turnstile (/ts access)
+  turnstile.set.bank:
+    default: op
+    description: Needed to set the bank that a Turnstile is connected to (/ts bank)
+  turnstile.set.free:
+    default: op
+    description: Needed to set the time that a Turnstile is free (/ts free)
+  turnstile.set.locked:
+    default: op
+    description: Needed to set the time that a Turnstile is locked (/ts locked)
+  turnstile.earned:
+    default: op
+    description: Needed to see how much a Turnstile has earned (/ts earned)
+  turnstile.collect:
+    default: op
+    description: Needed to collect money/items from a Turnstile (/ts collect)
+  turnstile.list:
+    default: op
+    description: Needed to see a list of Turnstiles (/ts list)
+  turnstile.info:
+    default: op
+    description: Needed to See info about a Turnstile (/ts info)
+  turnstile.openfree:
+    default: op
+    description: Open Turnstiles free of charge
+  turnstile.ignoreowner:
+    default: opr
+    description: Edit other Players' Turnstiles

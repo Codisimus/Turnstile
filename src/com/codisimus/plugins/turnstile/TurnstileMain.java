@@ -176,9 +176,7 @@ public class TurnstileMain extends JavaPlugin {
     public static boolean hasPermission(Player player, String type) {
         if (permissions != null)
             return permissions.has(player, "turnstile."+type);
-        else if (type.equals("open"))
-            return true;
-        return player.isOp();
+        return player.hasPermission("turnstile."+type);
     }
     
     /**
