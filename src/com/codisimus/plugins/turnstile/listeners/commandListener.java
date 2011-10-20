@@ -27,7 +27,12 @@ public class commandListener implements CommandExecutor {
     
     /**
      * Listens for ChunkOwn commands to execute them
-     *
+     * 
+     * @param sender The CommandSender who may not be a Player
+     * @param command The command that was executed
+     * @param alias The alias that the sender used
+     * @param args The arguments for the command
+     * @return true always
      */
     @Override
     public boolean onCommand(CommandSender sender, Command command, String alias, String[] args) {
@@ -213,6 +218,7 @@ public class commandListener implements CommandExecutor {
         Turnstile turnstile = new Turnstile(name, player);
         player.sendMessage("Turnstile "+name+" made!");
         SaveSystem.turnstiles.add(turnstile);
+        SaveSystem.save();
     }
     
     public static void link(Player player, String name) {
@@ -279,7 +285,6 @@ public class commandListener implements CommandExecutor {
         turnstile.durability = durability;
         turnstile.earned = 0;
         player.sendMessage("Price of turnstile "+name+" has been set to "+amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
-
         SaveSystem.save();
     }
     
@@ -568,6 +573,7 @@ public class commandListener implements CommandExecutor {
         }
         
         turnstile.collect(player);
+        SaveSystem.save();
     }
     
     public static void list(Player player, String name) {
