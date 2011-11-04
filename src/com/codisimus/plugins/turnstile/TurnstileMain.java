@@ -16,7 +16,6 @@ import java.util.Properties;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import org.bukkit.Server;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Priority;
 import org.bukkit.event.Event.Type;
@@ -34,10 +33,11 @@ public class TurnstileMain extends JavaPlugin {
     public static PermissionManager permissions;
     public static PluginManager pm;
     public static Server server;
-    public static boolean noFraud;
-    public static int timeOut;
+    public static int defaultTimeOut;
     public static boolean useOpenFreeNode;
     public static boolean useMakeFreeNode;
+    public static boolean defaultOneWay;
+    public static boolean defaultNoFraud;
     public static String correct;
     public static String wrong;
     public static String notEnoughMoney;
@@ -60,7 +60,7 @@ public class TurnstileMain extends JavaPlugin {
         pm = server.getPluginManager();
         checkFiles();
         loadConfig();
-        SaveSystem.loadFromFile();
+        SaveSystem.load(null);
         registerEvents();
         getCommand("turnstile").setExecutor(new commandListener());
         System.out.println("Turnstile "+this.getDescription().getVersion()+" is enabled!");
@@ -110,7 +110,7 @@ public class TurnstileMain extends JavaPlugin {
             in.close();
         }
         catch (Exception moveFailed) {
-            System.err.println("[ChunkOwn] File Move Failed!");
+            System.err.println("[Turnstile] File Move Failed!");
             moveFailed.printStackTrace();
         }
     }
@@ -129,9 +129,9 @@ public class TurnstileMain extends JavaPlugin {
         cost = Integer.parseInt(loadValue("CostToMakeTurnstile"));
         Register.economy = loadValue("Economy");
         pluginListener.useBP = Boolean.parseBoolean(loadValue("UseBukkitPermissions"));
-        Turnstile.oneWay = Boolean.parseBoolean(loadValue("OneWayTurnstiles"));
-        noFraud = Boolean.parseBoolean(loadValue("NoFraud"));
-        timeOut = Integer.parseInt(loadValue("AutoCloseTimer"));
+        defaultOneWay = Boolean.parseBoolean(loadValue("OneWayTurnstiles"));
+        defaultNoFraud = Boolean.parseBoolean(loadValue("NoFraud"));
+        defaultTimeOut = Integer.parseInt(loadValue("AutoCloseTimer"));
         useOpenFreeNode = Boolean.parseBoolean(loadValue("use'openfree'node"));
         useMakeFreeNode = Boolean.parseBoolean(loadValue("use'makefree'node"));
         playerListener.permission = format(loadValue("PermissionMessage"));
@@ -234,27 +234,5 @@ public class TurnstileMain extends JavaPlugin {
             case 330: return true; //ID is Iron Door
             default: return false;
         }
-    }
-    
-    /**
-     * Returns whether the given Block is above or below the other given Block
-     * 
-     * @param blockOne The first Block to be compared
-     * @param blockTwo The second Block to be compared
-     * @return true if the given Block is above or below the other given Block
-     */
-    public static boolean areNeighbors(Block blockOne, Block blockTwo) {
-        if (blockOne.getWorld() != blockTwo.getWorld())
-            return false;
-        
-        if (blockOne.getX() != blockTwo.getX())
-            return false;
-        
-        if (blockOne.getZ() != blockTwo.getZ())
-            return false;
-        
-        int b = blockOne.getY();
-        int y = blockTwo.getY();
-        return b == y+1 || b == y-1;
     }
 }

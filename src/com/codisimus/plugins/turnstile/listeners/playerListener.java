@@ -27,7 +27,7 @@ public class playerListener extends PlayerListener{
 
     @Override
     public void onPlayerInteract (PlayerInteractEvent event) {
-        //Return if Action was arm flailing
+        //Return if the Action was arm flailing
         if (event.getAction().equals(Action.LEFT_CLICK_AIR) || event.getAction().equals(Action.RIGHT_CLICK_AIR))
             return;
         
@@ -76,7 +76,7 @@ public class playerListener extends PlayerListener{
                 return;
             }
             
-            if (TurnstileMain.noFraud) {
+            if (turnstile.noFraud) {
                 turnstile.open(block);
                 
                 if (turnstile.price == 0)
@@ -90,8 +90,7 @@ public class playerListener extends PlayerListener{
         //Cancel event if the Wood Door of a Turnstile was clicked
         else if (id == 64 || id == 324)
             for (Turnstile turnstile: SaveSystem.turnstiles) {
-                Block gate = turnstile.gate;
-                if (gate.equals(block) || TurnstileMain.areNeighbors(gate, block))
+                if (turnstile.isBlock(block) || turnstile.isNeighbor(block))
                     event.setCancelled(true);
             }
     }
@@ -107,12 +106,12 @@ public class playerListener extends PlayerListener{
         //Check each open Turnstile
         for (Turnstile turnstile: openTurnstiles) {
             //Check if the Player stepped into this Turnstile's gate
-            if (turnstile.gate.equals(to)) {
+            if (turnstile.isBlock(to)) {
                 Location from = event.getFrom();
                 Player player = event.getPlayer();
 
                 //Teleport Player back where they came from if they entered the Turnstile backwards
-                if (Turnstile.oneWay && !turnstile.checkOneWay(from.getBlock())) {
+                if (turnstile.oneWay && !turnstile.checkOneWay(from.getBlock())) {
                     from.setX(from.getBlockX()+.5);
                     from.setY(from.getBlockY());
                     from.setZ(from.getBlockZ()+.5);
@@ -124,7 +123,7 @@ public class playerListener extends PlayerListener{
                 turnstile.close();
 
                 //If NoFraud mode is off, the Player already payed so Return without charging
-                if (!TurnstileMain.noFraud)
+                if (!turnstile.noFraud)
                     return;
 
                 //Return without charging if the Turnstile is currently free
@@ -138,6 +137,7 @@ public class playerListener extends PlayerListener{
                     from.setZ(from.getBlockZ()+.5);
                     player.teleport(from);
                 }
+                
                 return;
             }
         }

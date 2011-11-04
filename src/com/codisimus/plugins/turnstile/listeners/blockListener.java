@@ -27,7 +27,7 @@ public class blockListener extends BlockListener {
         
         //Iterate through all Turnstiles and cancel the event if the Block is the Turnstile gate
         for (Turnstile turnstile: SaveSystem.turnstiles)
-            if (turnstile.gate.equals(block) || TurnstileMain.areNeighbors(block, turnstile.gate))
+            if (turnstile.isBlock(block) || turnstile.isNeighbor(block))
                 event.setNewCurrent(event.getOldCurrent());
     }
 
@@ -35,24 +35,26 @@ public class blockListener extends BlockListener {
     public void onBlockBreak (BlockBreakEvent event) {
         Block block = event.getBlock();
         int id = block.getTypeId();
-        Player player = event.getPlayer();
-        if (TurnstileMain.isSwitch(id)) {
-            for (Turnstile turnstile: SaveSystem.turnstiles)
-                for (Block button: turnstile.buttons )
-                    if (button.getLocation().equals(block.getLocation()))
-                        if (!turnstile.isOwner(player))
-                            event.setCancelled(true);
+        
+        if (TurnstileMain.isSwitch(id) || id == 85) {
+            Turnstile turnstile = SaveSystem.findTurnstile(block);
+            
+            if (turnstile == null)
+                return;
+            
+            if (!turnstile.isOwner(event.getPlayer()))
+                event.setCancelled(true);
         }
-        else if (id == 85) {
-            for (Turnstile turnstile: SaveSystem.turnstiles)
-                if (turnstile.gate.equals(block))
-                    if (!turnstile.isOwner(player))
-                        event.setCancelled(true);
-        }
-        else if (TurnstileMain.isDoor(id))
-            for (Turnstile turnstile: SaveSystem.turnstiles)
-                if (turnstile.gate.equals(block) || TurnstileMain.areNeighbors(block, turnstile.gate))
-                    if (!turnstile.isOwner(player))
-                        event.setCancelled(true);
+        
+        if (!TurnstileMain.isDoor(id))
+            return;
+            
+        for (Turnstile turnstile: SaveSystem.turnstiles)
+            if (turnstile.isBlock(block) || turnstile.isNeighbor(block)) {
+                if (!turnstile.isOwner(event.getPlayer()))
+                    event.setCancelled(true);
+                
+                return;
+            }
     }
 }

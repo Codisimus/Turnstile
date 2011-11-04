@@ -13,7 +13,7 @@ public class worldListener extends WorldListener{
 
     @Override
     public void onWorldLoad (WorldLoadEvent event) {
-        SaveSystem.loadData(event.getWorld());
+        SaveSystem.load(event.getWorld());
     }
 }
 

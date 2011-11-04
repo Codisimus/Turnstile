@@ -18,25 +18,37 @@ import org.bukkit.material.Door;
  * @author Codisimus
  */
 public class Turnstile {
-    public static boolean oneWay;
     public String name;
-    public String access = "public";
-    public double earned = 0;
-    public double price = 0;
-    public int item = 0;
-    public int amount = 0;
-    public short durability = -1;
-    public boolean open = false;
-    public int openedFrom;
     public String owner;
-    public Block gate;
-    public LinkedList<Block> buttons = new LinkedList<Block>();
-    public int instance = 0;
+
+    public String world;
+    public int x;
+    public int y;
+    public int z;
+
+    public double price = 0;
+    public double moneyEarned = 0;
+
+    public int item = 0;
+    public short durability = -1;
+    public int amount = 0;
+    public int itemsEarned = 0;
+
+    public boolean oneWay = TurnstileMain.defaultOneWay;
+    public boolean noFraud = TurnstileMain.defaultNoFraud;
+    public int timeOut = TurnstileMain.defaultTimeOut;
+
     public long freeStart = 0;
     public long freeEnd = 0;
     public long lockedStart = 0;
     public long lockedEnd = 0;
 
+    public LinkedList<String> access = null; //List of Groups that have access (private if empty, public if null)
+    public LinkedList<TurnstileButton> buttons = new LinkedList<TurnstileButton>(); //List of Blocks that activate the Warp
+
+    public boolean open = false;
+    public int instance = 0;
+    public int openedFrom = -1;
 
     /**
      * Creates a Turnstile from the save file.
@@ -45,10 +57,13 @@ public class Turnstile {
      * @param gate The Block of the Turnstile
      * @param owner The Player or Bank that owns the Turnstile
      */
-    public Turnstile (String name, Block gate, String owner) {
+    public Turnstile (String name, String owner, String world, int x, int y, int z) {
         this.name = name;
-        this.gate = gate;
         this.owner = owner;
+        this.world = world;
+        this.x = x;
+        this.y = y;
+        this.z = z;
     }
 
     /**
@@ -60,7 +75,11 @@ public class Turnstile {
     public Turnstile (String name, Player creator) {
         this.name = name;
         this.owner = creator.getName();
-        gate = creator.getTargetBlock(null, 100);
+        world = creator.getWorld().getName();
+        Block block = creator.getTargetBlock(null, 100);
+        x = block.getX();
+        y = block.getY();
+        z = block.getZ();
     }
     
     /**
@@ -71,10 +90,10 @@ public class Turnstile {
      */
     public boolean checkOneWay(Block from) {
         switch (openedFrom) {
-            case 0: return from.getX() < gate.getX();
-            case 1: return from.getX() > gate.getX();
-            case 2: return from.getZ() < gate.getZ();
-            case 3: return from.getZ() > gate.getZ();
+            case 0: return from.getX() < x;
+            case 1: return from.getX() > x;
+            case 2: return from.getZ() < z;
+            case 3: return from.getZ() > z;
             default: return true;
         }
     }
@@ -109,7 +128,7 @@ public class Turnstile {
                 //Increment earned and open the Turnstile
                 player.sendMessage(TurnstileMain.correct);
                 open(chest.getBlock());
-                earned++;
+                itemsEarned++;
                 return;
             }
         }
@@ -147,7 +166,7 @@ public class Turnstile {
         
         //Return true after incrementing earned by the price
         player.sendMessage(TurnstileMain.open.replaceAll("<price>", ""+Register.format(price)));
-        earned = earned + price;
+        moneyEarned = moneyEarned + price;
         return true;
     }
     
@@ -160,25 +179,23 @@ public class Turnstile {
      */
     public boolean hasAccess(Player player) {
         //Return true if the Turnstile is public
-        if (access.equals("public"))
+        if (access == null)
             return true;
-        
-        //Return false if the Turnstile is private and the Player is an owner
-        if (access.equals("private")) {
-            if (!isOwner(player)) {
-                player.sendMessage(TurnstileMain.privateTurnstile);
-                return false;
-            }
+
+        //Return isOwner() if the Turnstile is private
+        if (access.isEmpty()) {
+            if (isOwner(player))
+                return true;
         }
+        else
+            //Return true if the Player is in a group that has access
+            for (String group: access)
+                if (!TurnstileMain.permissions.getUser(player).inGroup(group))
+                    return true;
         
-        //Return false if the Player is not in the group that has access
-        if (TurnstileMain.permissions == null || !TurnstileMain.permissions.getUser(player).inGroup(access)) {
-            player.sendMessage(TurnstileMain.privateTurnstile);
-            return false;
-        }
-        
-        //Return true because the Player has access rights
-        return true;
+        //Return false because the Player does not have access rights
+        player.sendMessage(TurnstileMain.privateTurnstile);
+        return false;
     }
 
     /**
@@ -195,37 +212,44 @@ public class Turnstile {
         Thread thread = new Thread() {
             @Override
             public void run() {
-                //Determine the type of the gate to know how to open it
+                Block block = TurnstileMain.server.getWorld(world).getBlockAt(x, y, z);
                 Door door;
-                switch (gate.getTypeId()) {
-                    case 85: gate.setTypeId(0); break; //Change FENCE to AIR
+
+                //Determine the type of the gate to know how to open it
+                switch (block.getTypeId()) {
+                    case 85: block.setTypeId(0); break; //Change FENCE to AIR
                     //case 96: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Open TrapDoor
                     //case 107: break; //Open FenceGate
+
                     case 64: //Open Door
-                        door = (Door)gate.getState().getData();
+                        door = (Door)block.getState().getData();
                         if (door.isOpen())
                             door.setOpen(true);
                         break;
+
                     case 71: //Open Door
-                        door = (Door)gate.getState().getData();
+                        door = (Door)block.getState().getData();
                         if (door.isOpen())
                             door.setOpen(true);
                         break;
+
                     case 324: //Open Door
-                        door = (Door)gate.getState().getData();
+                        door = (Door)block.getState().getData();
                         if (door.isOpen())
                             door.setOpen(true);
                         break;
+
                     case 330: //Open Door
-                        door = (Door)gate.getState().getData();
+                        door = (Door)block.getState().getData();
                         if (door.isOpen())
                             door.setOpen(true);
                         break;
+
                     default: break;
                 }
                 
                 //Return if there is no timeOut set
-                if (TurnstileMain.timeOut == 0)
+                if (timeOut == 0)
                     return;
                 
                 //Increment the instance and set what instance this open is
@@ -233,7 +257,7 @@ public class Turnstile {
                 
                 //Leave gate open for specific amount of time
                 try {
-                    Thread.currentThread().sleep(TurnstileMain.timeOut * 1000);
+                    Thread.currentThread().sleep(timeOut * 1000);
                 }
                 catch (InterruptedException ex) {
                 }
@@ -251,32 +275,39 @@ public class Turnstile {
      *
      */
     public void close() {
-        //Determine the type of the gate to know how to close it
+        Block block = TurnstileMain.server.getWorld(world).getBlockAt(x, y, z);
         Door door;
-        switch (gate.getTypeId()) {
-            case 0: gate.setTypeId(85); break; //Change AIR to FENCE
+
+        //Determine the type of the gate to know how to close it
+        switch (block.getTypeId()) {
+            case 0: block.setTypeId(85); break; //Change AIR to FENCE
             //case 96: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Close TrapDoor
             //case 107: break; //Close FenceGate
+
             case 64: //Close Door
-                door = (Door)gate.getState().getData();
+                door = (Door)block.getState().getData();
                 if (door.isOpen())
                     door.setOpen(false);
                 break;
+
             case 71: //Close Door
-                door = (Door)gate.getState().getData();
+                door = (Door)block.getState().getData();
                 if (door.isOpen())
                     door.setOpen(false);
                 break;
+
             case 324: //Close Door
-                door = (Door)gate.getState().getData();
+                door = (Door)block.getState().getData();
                 if (door.isOpen())
                     door.setOpen(false);
                 break;
+
             case 330: //Close Door
-                door = (Door)gate.getState().getData();
+                door = (Door)block.getState().getData();
                 if (door.isOpen())
                     door.setOpen(false);
                 break;
+
             default: break;
         }
         
@@ -295,7 +326,7 @@ public class Turnstile {
         //Loop unless the Player's inventory is full
         while (sack.firstEmpty() >= 0) {
             //Return when all earned items are collected
-            if (earned <= 0) {
+            if (itemsEarned <= 0) {
                 player.sendMessage("There are no more items to collect");
                 return;
             }
@@ -308,7 +339,7 @@ public class Turnstile {
             
             //Add the stack to the Player's inventory and decrement earned
             sack.setItem(sack.firstEmpty(), stack);
-            earned--;
+            itemsEarned--;
         }
         
         player.sendMessage("Inventory full");
@@ -384,6 +415,7 @@ public class Turnstile {
             case 54: //Material == Chest
                 openedFrom = -1; //OneWay does not effect paying with items
                 break;
+
             case 77: //Material == Stone Button
                 Button button = (Button)block.getState().getData();
                 BlockFace face = button.getFacing();
@@ -398,17 +430,76 @@ public class Turnstile {
                 else
                     openedFrom = -1;
                 break;
+
             default: //Material == Stone Plate || Wood Plate
-                if (block.getX() < gate.getX())
+                if (block.getX() < x)
                     openedFrom = 0;
-                else if (block.getX() > gate.getX())
+                else if (block.getX() > x)
                     openedFrom = 1;
-                else if (block.getZ() < gate.getZ())
+                else if (block.getZ() < z)
                     openedFrom = 2;
-                else if (block.getZ() > gate.getZ())
+                else if (block.getZ() > z)
                     openedFrom = 3;
                 else
                     openedFrom = -1;
         }
+    }
+
+    /**
+     * Returns true if the given Block has the same Location data as this Turnstile
+     *
+     * @param block The given Block
+     * @return True if the Location data is the same
+     */
+    public boolean isBlock(Block block) {
+        if (block.getX() != x)
+            return false;
+
+        if (block.getY() != y)
+            return false;
+
+        if (block.getZ() != z)
+            return false;
+
+        return block.getWorld().getName().equals(world);
+    }
+    
+    /**
+     * Returns whether the given Block is above or below the other given Block
+     * 
+     * @param blockOne The first Block to be compared
+     * @param blockTwo The second Block to be compared
+     * @return true if the given Block is above or below the other given Block
+     */
+    public boolean isNeighbor(Block block) {
+        if (block.getX() != x)
+            return false;
+        
+        if (block.getZ() != z)
+            return false;
+        
+        if (block.getWorld().getName().equals(world))
+            return false;
+        
+        int b = block.getY();
+        
+        return b == y+1 || b == y-1;
+    }
+
+    /**
+     * Returns true if the given Block has the same Location data as a Linked Button
+     *
+     * @param block The given Block
+     * @return True if the Location data is the same
+     */
+    public boolean hasBlock(Block block) {
+        //Iterate through the data to find a TurnstileButton that matches the given Block
+        for (TurnstileButton button: buttons)
+            if (block.getX() == button.x && block.getY() == button.y &&
+            block.getZ() == button.z && block.getWorld().getName().equals(button.world))
+                return true;
+
+        //Return false because no Button was found
+        return false;
     }
 }
