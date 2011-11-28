@@ -15,6 +15,7 @@ import org.bukkit.event.player.PlayerListener;
 import org.bukkit.event.player.PlayerMoveEvent;
 
 /**
+ * Listens for Players using Turnstiles
  *
  * @author Codisimus
  */
@@ -25,6 +26,11 @@ public class playerListener extends PlayerListener{
     public static String oneWay;
     public static LinkedList<Turnstile> openTurnstiles = new LinkedList<Turnstile>();
 
+    /**
+     * Listens for Players attempting to open Turnstiles
+     * 
+     * @param event The PlayerInteractEvent that occurred
+     */
     @Override
     public void onPlayerInteract (PlayerInteractEvent event) {
         //Return if the Action was arm flailing
@@ -95,6 +101,11 @@ public class playerListener extends PlayerListener{
             }
     }
 
+    /**
+     * Listens for Players entering open Turnstiles
+     * 
+     * @param event The PlayerMoveEvent that occurred
+     */
     @Override
     public void onPlayerMove (PlayerMoveEvent event) {
         //Return if no Turnstiles are open

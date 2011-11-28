@@ -5,7 +5,10 @@ import com.codisimus.plugins.turnstile.SaveSystem;
 import com.codisimus.plugins.turnstile.Turnstile;
 import com.codisimus.plugins.turnstile.TurnstileButton;
 import com.codisimus.plugins.turnstile.TurnstileMain;
+import com.google.common.collect.Sets;
+import java.io.File;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import org.bukkit.Material;
@@ -21,11 +24,17 @@ import org.bukkit.entity.Player;
  * @author Codisimus
  */
 public class commandListener implements CommandExecutor {
-    //public static final HashSet TRANSPARENT = Sets.newHashSet(27, 28, 37, 38, 39, 40, 50, 65, 66, 69, 70, 72, 75, 76, 78);
+    public static enum Action {
+        HELP, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
+        DELETE, FREE, LOCKED, COLLECT, LIST, INFO, RENAME
+    }
+    public static final HashSet TRANSPARENT = Sets.newHashSet((byte)27, (byte)28,
+            (byte)37, (byte)38, (byte)39, (byte)40, (byte)50, (byte)65, (byte)66,
+            (byte)69, (byte)70, (byte)72, (byte)75, (byte)76, (byte)78);
     public static String permissionMsg;
     
     /**
-     * Listens for ChunkOwn commands to execute them
+     * Listens for Turnstile commands to execute them
      * 
      * @param sender The CommandSender who may not be a Player
      * @param command The command that was executed
@@ -46,55 +55,24 @@ public class commandListener implements CommandExecutor {
             sendHelp(player);
             return true;
         }
-
-        //Set the ID of the command
-        int commandID = 0;
-        if (args[0].equals("make"))
-            commandID = 1;
-        else if (args[0].equals("link"))
-            commandID = 2;
-        else if (args[0].equals("price"))
-            commandID = 3;
-        else if (args[0].equals("owner"))
-            commandID = 4;
-        else if (args[0].equals("access"))
-            commandID = 5;
-        else if (args[0].equals("bank"))
-            commandID = 6;
-        else if (args[0].equals("unlink"))
-            commandID = 7;
-        else if (args[0].equals("delete"))
-            commandID = 8;
-        else if (args[0].equals("free"))
-            commandID = 9;
-        else if (args[0].equals("locked"))
-            commandID = 10;
-        else if (args[0].equals("collect"))
-            commandID = 11;
-        else if (args[0].equals("list"))
-            commandID = 12;
-        else if (args[0].equals("info"))
-            commandID = 13;
-        else if (args[0].equals("rename"))
-            commandID = 14;
         
-        //Execute the command
-        switch (commandID) {
-            case 1: //Command == make
+        //Execute the correct command
+        switch (Action.valueOf(args[0])) {
+            case MAKE:
                 if (args.length == 2)
                     make(player, args[1]);
                 else
                     sendHelp(player);
                 return true;
                 
-            case 2: //Command == link
+            case LINK:
                 if (args.length == 2)
                     link(player, args[1]);
                 else
                     sendHelp(player);
                 return true;
                 
-            case 3: //Command == price
+            case PRICE:
                 switch (args.length) {
                     case 2: price(player, null, Double.parseDouble(args[1])); return true;
                         
@@ -121,7 +99,7 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 4: //Command == owner
+            case OWNER:
                 switch (args.length) {
                     case 2: owner(player, null, args[1]); return true;
                         
@@ -130,7 +108,7 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 5: //Command == access
+            case ACCESS:
                 switch (args.length) {
                     case 2: access(player, null, args[1]); return true;
                         
@@ -139,7 +117,7 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 6: //Command == bank
+            case BANK:
                 switch (args.length) {
                     case 2: bank(player, null, args[1]); return true;
                         
@@ -148,14 +126,14 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 7: //Command == unlink
+            case UNLINK:
                 if (args.length == 1)
                     unlink(player);
                 else
                     sendHelp(player);
                 return true;
                 
-            case 8: //Command == delete
+            case DELETE:
                 switch (args.length) {
                     case 2: delete(player, null); return true;
                         
@@ -164,7 +142,7 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 9: //Command == free
+            case FREE:
                 switch (args.length) {
                     case 2: free(player, null, args[1]); return true;
                         
@@ -173,7 +151,7 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 10: //Command == locked
+            case LOCKED:
                 switch (args.length) {
                     case 2: locked(player, null, args[1]); return true;
                         
@@ -182,21 +160,21 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 11: //Command == collect
+            case COLLECT:
                 if (args.length == 1)
                     collect(player);
                 else
                     sendHelp(player);
                 return true;
                 
-            case 12: //Command == list
+            case LIST:
                 if (args.length == 1)
                     list(player);
                 else
                     sendHelp(player);
                 return true;
                 
-            case 13: //Command == info
+            case INFO:
                 switch (args.length) {
                     case 2: info(player, null); return true;
                         
@@ -205,7 +183,7 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            case 14: //Command == rename
+            case RENAME:
                 switch (args.length) {
                     case 2: rename(player, null, args[1]); return true;
                         
@@ -218,6 +196,12 @@ public class commandListener implements CommandExecutor {
         }
     }
     
+    /**
+     * Creates a new Turnstile of the given name
+     * 
+     * @param player The Player creating the Turnstile
+     * @param name The name of the Turnstile being created (must not already exist)
+     */
     public static void make(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
@@ -258,6 +242,12 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Links the target Block to the specified Turnstile
+     * 
+     * @param player The Player linking the Block they are targeting
+     * @param name The name of the Turnstile the Block will be linked to
+     */
     public static void link(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
@@ -292,6 +282,16 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Sets the price of the specified Turnstile to an item
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player setting the price
+     * @param name The name of the Turnstile being modified
+     * @param amount The amount/stack size of the item
+     * @param item The id or String of the item Material
+     * @param durability The Durability of the item
+     */
     public static void price(Player player, String name, int amount, String item, short durability) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.price")) {
@@ -340,6 +340,14 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Sets the price of the specified Turnstile
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player setting the price
+     * @param name The name of the Turnstile being modified
+     * @param price The new price
+     */
     public static void price(Player player, String name, double price) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.price")) {
@@ -383,6 +391,14 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Changes the Owner of the specified Turnstile
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player changing the Owner
+     * @param name The name of the Turnstile being modified
+     * @param owner The new Owner
+     */
     public static void owner(Player player, String name, String owner) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.owner")) {
@@ -424,6 +440,14 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Modifies the access value of the specified Turnstile
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player modifying the Turnstile
+     * @param name The name of the Turnstile being modified
+     * @param access The new access value
+     */
     public static void access(Player player, String name, String access) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.access")) {
@@ -466,10 +490,12 @@ public class commandListener implements CommandExecutor {
     }
     
     /**
-     * Removes all the Chunks that are owned by the given Player
-     * A Chunk is owned buy a Player if the owner field is the Player's name
+     * Modifies the bank value of the specified Turnstile
+     * If a name is not provided, the Turnstile of the target Block is modified
      * 
-     * @param player The name of the Player
+     * @param player The Player modifying the Turnstile
+     * @param name The name of the Turnstile being modified
+     * @param bank The new bank value
      */
     public static void bank(Player player, String name, String bank) {
         //Cancel if the Player does not have permission to use the command
@@ -512,6 +538,11 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Unlinks the target Block from the specified Turnstile
+     * 
+     * @param player The Player unlinking the Block they are targeting
+     */
     public static void unlink(Player player) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
@@ -553,6 +584,13 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Deletes the specified Turnstile
+     * If a name is not provided, the Turnstile of the target Block is deleted
+     * 
+     * @param player The Player deleting the Turnstile
+     * @param name The name of the Turnstile to be deleted
+     */
     public static void delete(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
@@ -590,10 +628,20 @@ public class commandListener implements CommandExecutor {
         }
         
         SaveSystem.turnstiles.remove(turnstile);
+        File trash = new File("plugins/PhatLoots/"+turnstile.name+".dat");
+        trash.delete();
         player.sendMessage("Turnstile "+name+" was deleted!");
         SaveSystem.save();
     }
     
+    /**
+     * Sets the time range that the specified Turnstile is free
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player modifying the Turnstile
+     * @param name The name of the Turnstile being modified
+     * @param range The given time range
+     */
     public static void free(Player player, String name, String range) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.free")) {
@@ -638,6 +686,14 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Sets the time range that the specified Turnstile is locked
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player modifying the Turnstile
+     * @param name The name of the Turnstile being modified
+     * @param range The given time range
+     */
     public static void locked(Player player, String name, String range) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.locked")) {
@@ -682,6 +738,11 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Allows the Owner to collect items from the target Chest
+     * 
+     * @param player The Player collecting the items
+     */
     public static void collect(Player player) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "collect")) {
@@ -715,6 +776,11 @@ public class commandListener implements CommandExecutor {
         SaveSystem.save();
     }
     
+    /**
+     * Displays a list of current Turnstiles
+     * 
+     * @param player The Player requesting the list
+     */
     public static void list(Player player) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "list")) {
@@ -730,6 +796,13 @@ public class commandListener implements CommandExecutor {
         player.sendMessage(list.substring(0, list.length()-2));
     }
     
+    /**
+     * Displays the info of the specified Turnstile
+     * If a name is not provided, the Turnstile of the target Block is used
+     * 
+     * @param player The Player requesting the info
+     * @param name The name of the Turnstile
+     */
     public static void info(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "collect")) {
@@ -782,6 +855,14 @@ public class commandListener implements CommandExecutor {
         player.sendMessage(buttons.substring(0, buttons.length() - 2));
     }
     
+    /**
+     * Changes the name of the specified Turnstile
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player renaming the Turnstile
+     * @param name The name of the Turnstile being renamed
+     * @param newName The new name
+     */
     public static void rename(Player player, String name, String newName) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {

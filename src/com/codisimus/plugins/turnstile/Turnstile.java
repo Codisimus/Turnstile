@@ -48,7 +48,7 @@ public class Turnstile {
 
     public boolean open = false;
     public int instance = 0;
-    public int openedFrom = -1;
+    public BlockFace openedFrom;
 
     /**
      * Creates a Turnstile from the save file.
@@ -90,10 +90,10 @@ public class Turnstile {
      */
     public boolean checkOneWay(Block from) {
         switch (openedFrom) {
-            case 0: return from.getX() < x;
-            case 1: return from.getX() > x;
-            case 2: return from.getZ() < z;
-            case 3: return from.getZ() > z;
+            case SOUTH: return from.getX() < x;
+            case NORTH: return from.getX() > x;
+            case EAST: return from.getZ() < z;
+            case WEST: return from.getZ() > z;
             default: return true;
         }
     }
@@ -413,35 +413,25 @@ public class Turnstile {
         int id = block.getTypeId();
         switch (id) {
             case 54: //Material == Chest
-                openedFrom = -1; //OneWay does not effect paying with items
+                openedFrom = BlockFace.SELF; //OneWay does not effect paying with items
                 break;
 
             case 77: //Material == Stone Button
-                Button button = (Button)block.getState().getData();
-                BlockFace face = button.getFacing();
-                if (face.equals(BlockFace.NORTH))
-                    openedFrom = 0;
-                else if (face.equals(BlockFace.SOUTH))
-                    openedFrom = 1;
-                else if (face.equals(BlockFace.EAST))
-                    openedFrom = 2;
-                else if (face.equals(BlockFace.WEST))
-                    openedFrom = 3;
-                else
-                    openedFrom = -1;
+                openedFrom = ((Button)block.getState().getData()).getFacing();
                 break;
 
             default: //Material == Stone Plate || Wood Plate
                 if (block.getX() < x)
-                    openedFrom = 0;
+                    openedFrom = BlockFace.NORTH;
                 else if (block.getX() > x)
-                    openedFrom = 1;
+                    openedFrom = BlockFace.SOUTH;
                 else if (block.getZ() < z)
-                    openedFrom = 2;
+                    openedFrom = BlockFace.EAST;
                 else if (block.getZ() > z)
-                    openedFrom = 3;
+                    openedFrom = BlockFace.WEST;
                 else
-                    openedFrom = -1;
+                    openedFrom = BlockFace.SELF;
+                break;
         }
     }
 
@@ -483,7 +473,7 @@ public class Turnstile {
         
         int b = block.getY();
         
-        return b == y+1 || b == y-1;
+        return b == y + 1 || b == y - 1;
     }
 
     /**

@@ -3,7 +3,7 @@ package com.codisimus.plugins.turnstile;
 import org.bukkit.block.Block;
 
 /**
- * A Button is a Block location and the Type ID of the Block
+ * A TurnstileButton is a Block location and the Type ID of the Block
  * 
  * @author Codisimus
  */
@@ -44,6 +44,13 @@ public class TurnstileButton {
         this.type = type;
     }
 
+    /**
+     * Returns the String representation of this TurnstileButton
+     * The format of the returned String is as follows
+     * world'x'y'z'type
+     * 
+     * @return The String representation of this TurnstileButton
+     */
     @Override
     public String toString() {
         return world+"'"+x+"'"+y+"'"+z+"'"+type;

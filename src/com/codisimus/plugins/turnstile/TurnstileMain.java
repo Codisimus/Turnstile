@@ -47,13 +47,22 @@ public class TurnstileMain extends JavaPlugin {
     public static String privateTurnstile;
     public static Properties p;
 
+    /**
+     * Closes all open Turnstiles when this Plugin is disabled
+     *
+     */
     @Override
     public void onDisable () {
         //Close all open Turnstiles
+        System.out.println("[Turnstile] Closing all open Turnstiles...");
         for (Turnstile turnstile: playerListener.openTurnstiles)
             turnstile.close();
     }
 
+    /**
+     * Calls methods to load this Plugin when it is enabled
+     *
+     */
     @Override
     public void onEnable () {
         server = getServer();
@@ -71,8 +80,7 @@ public class TurnstileMain extends JavaPlugin {
      *
      */
     public void checkFiles() {
-        File file = new File("plugins/Turnstile/config.properties");
-        if (!file.exists())
+        if (!new File("plugins/Turnstile/config.properties").exists())
             moveFile("config.properties");
     }
     
@@ -129,9 +137,9 @@ public class TurnstileMain extends JavaPlugin {
         cost = Integer.parseInt(loadValue("CostToMakeTurnstile"));
         Register.economy = loadValue("Economy");
         pluginListener.useBP = Boolean.parseBoolean(loadValue("UseBukkitPermissions"));
-        defaultOneWay = Boolean.parseBoolean(loadValue("OneWayTurnstiles"));
-        defaultNoFraud = Boolean.parseBoolean(loadValue("NoFraud"));
-        defaultTimeOut = Integer.parseInt(loadValue("AutoCloseTimer"));
+        defaultOneWay = Boolean.parseBoolean(loadValue("OneWayByDefault"));
+        defaultNoFraud = Boolean.parseBoolean(loadValue("NoFraudByDefault"));
+        defaultTimeOut = Integer.parseInt(loadValue("DefaultAutoCloseTimer"));
         useOpenFreeNode = Boolean.parseBoolean(loadValue("use'openfree'node"));
         useMakeFreeNode = Boolean.parseBoolean(loadValue("use'makefree'node"));
         playerListener.permission = format(loadValue("PermissionMessage"));
@@ -148,16 +156,18 @@ public class TurnstileMain extends JavaPlugin {
     }
     
     /**
-     * Loads the given key and prints error if the key is missing
+     * Loads the given key and prints an error if the key is missing
      *
      * @param key The key to be loaded
      * @return The String value of the loaded key
      */
     public String loadValue(String key) {
+        //Print an error if the key is not found
         if (!p.containsKey(key)) {
             System.err.println("[Turnstile] Missing value for "+key+" in config file");
             System.err.println("[Turnstile] Please regenerate config file");
         }
+        
         return p.getProperty(key);
     }
     
@@ -193,7 +203,7 @@ public class TurnstileMain extends JavaPlugin {
     }
     
     /**
-     * Adds various Unicode characters to a string
+     * Adds various Unicode characters and colors to a string
      * 
      * @param string The string being formated
      * @return The formatted String

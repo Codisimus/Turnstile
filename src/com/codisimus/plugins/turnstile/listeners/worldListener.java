@@ -11,6 +11,11 @@ import org.bukkit.event.world.WorldLoadEvent;
  */
 public class worldListener extends WorldListener{
 
+    /**
+     * Loads ChestLock data for the loaded World
+     * 
+     * @param event The WorldLoadEvent that occurred
+     */
     @Override
     public void onWorldLoad (WorldLoadEvent event) {
         SaveSystem.load(event.getWorld());

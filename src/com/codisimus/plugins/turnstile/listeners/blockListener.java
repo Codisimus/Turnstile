@@ -17,6 +17,11 @@ import org.bukkit.event.block.BlockRedstoneEvent;
  */
 public class blockListener extends BlockListener {
     
+    /**
+     * Does not allow redstone to effect Doors that are linked to Turnstiles
+     * 
+     * @param event The BlockRedstoneEvent that occurred
+     */
     @Override
     public void onBlockRedstoneChange(BlockRedstoneEvent event) {
         //Return if the Block is not a door
@@ -31,27 +36,38 @@ public class blockListener extends BlockListener {
                 event.setNewCurrent(event.getOldCurrent());
     }
 
+    /**
+     * Does not allow Blocks that are linked to Turnstiles to be broken
+     * 
+     * @param event The BlockBreakEvent that occurred
+     */
     @Override
     public void onBlockBreak (BlockBreakEvent event) {
         Block block = event.getBlock();
         int id = block.getTypeId();
+        Player player = event.getPlayer();
         
+        //Check if the Turnstile is a Switch or a Chest
         if (TurnstileMain.isSwitch(id) || id == 85) {
+            //Return if the Block is not linked to a Turnstile
             Turnstile turnstile = SaveSystem.findTurnstile(block);
-            
             if (turnstile == null)
                 return;
             
-            if (!turnstile.isOwner(event.getPlayer()))
+            //Cancel the Event if the Player is not the Owner
+            if (!turnstile.isOwner(player))
                 event.setCancelled(true);
         }
         
+        //Return if the Block is a Door
         if (!TurnstileMain.isDoor(id))
             return;
-            
+        
+        //Check the Event if the Block is linked to a Turnstile
         for (Turnstile turnstile: SaveSystem.turnstiles)
             if (turnstile.isBlock(block) || turnstile.isNeighbor(block)) {
-                if (!turnstile.isOwner(event.getPlayer()))
+                //Cancel the Event if the Player is not the Owner
+                if (!turnstile.isOwner(player))
                     event.setCancelled(true);
                 
                 return;

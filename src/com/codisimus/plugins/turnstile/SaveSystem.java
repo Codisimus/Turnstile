@@ -65,11 +65,11 @@ public class SaveSystem {
                     turnstile.lockedEnd = Integer.parseInt(time[1]);
 
                     String access = p.getProperty("Access");
-                    if (!access.equals("public"))
-                        if (access.equals("private"))
-                            turnstile.access = new LinkedList<String>();
-                        else
-                            turnstile.access = (LinkedList<String>)Arrays.asList(access.split(", "));
+                    if (!access.equals("public")) {
+                        turnstile.access = new LinkedList<String>();
+                        if (!access.equals("private"))
+                            turnstile.access.addAll(Arrays.asList(access.split(", ")));
+                    }
 
                     String line = p.getProperty("Buttons");
                     if (!line.isEmpty()) {
@@ -92,6 +92,10 @@ public class SaveSystem {
             if (!turnstiles.isEmpty())
                 return;
 
+            File file = new File("plugins/Turnstile/turnstile.save");
+            if (!file.exists())
+                return;
+        
             System.out.println("[Turnstile] Loading outdated save files");
 
             bReader = new BufferedReader(new FileReader("plugins/Turnstile/turnstile.save"));
@@ -101,9 +105,13 @@ public class SaveSystem {
                 if (split.length == 15) {
                     if (split[11].endsWith("~NETHER"))
                         split[11].replace("~NETHER", "");
-                    if (world == null)
-                        world = TurnstileMain.server.getWorld(split[11]);
-                    if (world != null) {
+                    if (world == null) {
+                        for (World loadedWorld: TurnstileMain.server.getWorlds())
+                            load(loadedWorld);
+                        return;
+                    }
+
+                    if (world.getName().equals(split[11])) {
                         int x = Integer.parseInt(split[12]);
                         int y = Integer.parseInt(split[13]);
                         int z = Integer.parseInt(split[14]);

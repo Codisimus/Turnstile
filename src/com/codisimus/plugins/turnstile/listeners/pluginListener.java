@@ -15,6 +15,11 @@ import ru.tehkode.permissions.bukkit.PermissionsEx;
 public class pluginListener extends ServerListener {
     public static Boolean useBP;
 
+    /**
+     * Executes methods to look for various types of plugins to link
+     *
+     * @param event The PluginEnableEvent that occurred
+     */
     @Override
     public void onPluginEnable(PluginEnableEvent event) {
         linkPermissions();
@@ -22,7 +27,7 @@ public class pluginListener extends ServerListener {
     }
 
     /**
-     * Find and link a Permission plugin
+     * Finds and links a Permission plugin
      *
      */
     public void linkPermissions() {
@@ -43,7 +48,7 @@ public class pluginListener extends ServerListener {
     }
 
     /**
-     * Find and link an Economy plugin
+     * Finds and links an Economy plugin
      *
      */
     public void linkEconomy() {
@@ -59,7 +64,12 @@ public class pluginListener extends ServerListener {
         if (!Register.economy.equalsIgnoreCase("auto"))
             Methods.setPreferred(Register.economy);
 
+        //Find an Economy Plugin (will first look for preferred Plugin)
         Methods.setMethod(TurnstileMain.pm);
+        
+        //Return if no Economy Plugin was found
+        if (!Methods.hasMethod())
+            return;
 
         //Reset Methods if the preferred Economy was not found
         if (!Register.economy.equalsIgnoreCase("auto") && !Methods.getMethod().getName().equalsIgnoreCase(Register.economy)) {
