@@ -13,10 +13,12 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.material.Door;
 
 /**
  * Executes Player Commands
@@ -26,11 +28,31 @@ import org.bukkit.entity.Player;
 public class commandListener implements CommandExecutor {
     public static enum Action {
         HELP, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
-        DELETE, FREE, LOCKED, COLLECT, LIST, INFO, RENAME
+        DELETE, FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME
     }
-    public static final HashSet TRANSPARENT = Sets.newHashSet((byte)27, (byte)28,
-            (byte)37, (byte)38, (byte)39, (byte)40, (byte)50, (byte)65, (byte)66,
-            (byte)69, (byte)70, (byte)72, (byte)75, (byte)76, (byte)78);
+    public static final HashSet MAKE_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
+            (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
+            (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
+            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)65,
+            (byte)66, (byte)67, (byte)69, (byte)70, (byte)72, (byte)75, (byte)76,
+            (byte)77, (byte)78, (byte)90, (byte)92, (byte)101, (byte)102, (byte)104,
+            (byte)105, (byte)106, (byte)108, (byte)109, (byte)111, (byte)114,
+            (byte)115, (byte)117);
+    public static final HashSet LINK_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
+            (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
+            (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
+            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)64,
+            (byte)65, (byte)66, (byte)67, (byte)71, (byte)75, (byte)76, (byte)78,
+            (byte)85, (byte)90, (byte)92, (byte)96, (byte)101, (byte)102, (byte)104,
+            (byte)105, (byte)106, (byte)107, (byte)108, (byte)109, (byte)111,
+            (byte)113, (byte)114, (byte)115, (byte)117);
+    public static final HashSet TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
+            (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
+            (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
+            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)65,
+            (byte)66, (byte)67, (byte)75, (byte)76, (byte)78, (byte)90, (byte)92,
+            (byte)101, (byte)102, (byte)104, (byte)105, (byte)106, (byte)108,
+            (byte)109, (byte)111, (byte)114, (byte)115, (byte)117);
     public static String permissionMsg;
     
     /**
@@ -50,14 +72,24 @@ public class commandListener implements CommandExecutor {
         
         Player player = (Player)sender;
         
-        //Display help page if the Player did not add any arguments
+        //Display the help page if the Player did not add any arguments
         if (args.length == 0) {
             sendHelp(player);
             return true;
         }
         
+        Action action;
+        
+        try {
+            action = Action.valueOf(args[0].toUpperCase());
+        }
+        catch (Exception notEnum) {
+            sendHelp(player);
+            return true;
+        }
+        
         //Execute the correct command
-        switch (Action.valueOf(args[0])) {
+        switch (action) {
             case MAKE:
                 if (args.length == 2)
                     make(player, args[1]);
@@ -99,30 +131,38 @@ public class commandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
+            case NOFRAUD:
+                try {
+                    switch (args.length) {
+                        case 2: noFraud(player, null, Boolean.parseBoolean(args[1])); return true;
+                        case 3: noFraud(player, args[1], Boolean.parseBoolean(args[2])); return true;
+                        default: break;
+                    }
+                }
+                catch (Exception notInt) {
+                }
+                
+                sendHelp(player);
+                return true;
+                
             case OWNER:
                 switch (args.length) {
                     case 2: owner(player, null, args[1]); return true;
-                        
                     case 3: owner(player, args[1], args[2]); return true;
-                        
                     default: sendHelp(player); return true;
                 }
                 
             case ACCESS:
                 switch (args.length) {
                     case 2: access(player, null, args[1]); return true;
-                        
                     case 3: access(player, args[1], args[2]); return true;
-                        
                     default: sendHelp(player); return true;
                 }
                 
             case BANK:
                 switch (args.length) {
                     case 2: bank(player, null, args[1]); return true;
-                        
                     case 3: bank(player, args[1], args[2]); return true;
-                        
                     default: sendHelp(player); return true;
                 }
                 
@@ -135,28 +175,22 @@ public class commandListener implements CommandExecutor {
                 
             case DELETE:
                 switch (args.length) {
-                    case 2: delete(player, null); return true;
-                        
-                    case 3: delete(player, args[1]); return true;
-                        
+                    case 1: delete(player, null); return true;
+                    case 2: delete(player, args[1]); return true;
                     default: sendHelp(player); return true;
                 }
                 
             case FREE:
                 switch (args.length) {
                     case 2: free(player, null, args[1]); return true;
-                        
                     case 3: free(player, args[1], args[2]); return true;
-                        
                     default: sendHelp(player); return true;
                 }
                 
             case LOCKED:
                 switch (args.length) {
                     case 2: locked(player, null, args[1]); return true;
-                        
                     case 3: locked(player, args[1], args[2]); return true;
-                        
                     default: sendHelp(player); return true;
                 }
                 
@@ -177,18 +211,14 @@ public class commandListener implements CommandExecutor {
             case INFO:
                 switch (args.length) {
                     case 2: info(player, null); return true;
-                        
                     case 3: info(player, args[1]); return true;
-                        
                     default: sendHelp(player); return true;
                 }
                 
             case RENAME:
                 switch (args.length) {
                     case 2: rename(player, null, args[1]); return true;
-                        
                     case 3: rename(player, args[1], args[2]); return true;
-                        
                     default: sendHelp(player); return true;
                 }
                 
@@ -215,17 +245,26 @@ public class commandListener implements CommandExecutor {
             return;
         }
         
-        int id = player.getTargetBlock(null, 10).getTypeId();
-        
-        //Cancel if a correct block type is not targeted
-        if (id != 85 && !TurnstileMain.isDoor(id)) {
-            player.sendMessage("You must target a Door or Fence.");
-            return;
+        Block block = player.getTargetBlock(MAKE_TRANSPARENT, 10);
+        switch (block.getType()) {
+            case FENCE: break;
+                
+            case WOOD_DOOR: //Fall through
+            case WOODEN_DOOR: //Fall through
+            case IRON_DOOR: //Fall through
+            case IRON_DOOR_BLOCK: //Make sure the bottom half of the Door is used
+                if (((Door)block.getState().getData()).isTopHalf())
+                    block = block.getRelative(BlockFace.DOWN);
+                
+                break;
+                
+            default: //Cancel because an invalid Block type is targeted
+                player.sendMessage("You must target a Door or Fence.");
+                return;
         }
         
-        int price = TurnstileMain.cost;
-        
         //Do not charge cost to make a Turnstile is 0 or Player has the 'turnstile.makefree' node
+        int price = TurnstileMain.cost;
         if (price > 0 && (!TurnstileMain.useMakeFreeNode || !TurnstileMain.hasPermission(player, "makefree"))) {
             //Cancel if the Player could not afford it
             if (!Register.charge(player.getName(), null, price)) {
@@ -236,7 +275,7 @@ public class commandListener implements CommandExecutor {
             player.sendMessage(price+" deducted,");
         }
         
-        Turnstile turnstile = new Turnstile(name, player);
+        Turnstile turnstile = new Turnstile(name, player.getName(), block);
         player.sendMessage("Turnstile "+name+" made!");
         SaveSystem.turnstiles.add(turnstile);
         SaveSystem.save();
@@ -255,12 +294,18 @@ public class commandListener implements CommandExecutor {
             return;
         }
         
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(LINK_TRANSPARENT, 10);
         
         //Cancel if a correct block type is not targeted
-        if (!TurnstileMain.isSwitch(block.getTypeId())) {
-            player.sendMessage("You must link the Turnstile to a Button, Chest, or Pressure plate.");
-            return;
+        switch (block.getType()) {
+            case CHEST: //Fall through
+            case STONE_PLATE: //Fall through
+            case WOOD_PLATE: //Fall through
+            case STONE_BUTTON: break;
+            
+            default:
+                player.sendMessage("You must link the Turnstile to a Button, Chest, or Pressure plate.");
+                return;
         }
         
         Turnstile turnstile = SaveSystem.findTurnstile(name);
@@ -303,7 +348,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -329,13 +374,16 @@ public class commandListener implements CommandExecutor {
         }
         
         Material type = Material.getMaterial(item);
+        
         if (type == null)
             turnstile.item = Integer.parseInt(item);
         else
             turnstile.item = type.getId();
+        
         turnstile.amount = amount;
         turnstile.durability = durability;
         turnstile.itemsEarned = 0;
+        
         player.sendMessage("Price of Turnstile "+name+" has been set to "+amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
         SaveSystem.save();
     }
@@ -359,7 +407,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -392,6 +440,66 @@ public class commandListener implements CommandExecutor {
     }
     
     /**
+     * Sets the time range that the specified Turnstile is locked
+     * If a name is not provided, the Turnstile of the target Block is modified
+     * 
+     * @param player The Player modifying the Turnstile
+     * @param name The name of the Turnstile being modified
+     * @param bool True if the Turnstile will be set to noFraud mode
+     */
+    public static void noFraud(Player player, String name, boolean bool) {
+        //Cancel if the Player does not have permission to use the command
+        if (!TurnstileMain.hasPermission(player, "set.nofraud")) {
+            player.sendMessage(permissionMsg);
+            return;
+        }
+        
+        Turnstile turnstile = null;
+        
+        if (name == null) {
+            //Find the Turnstile that will be modified using the target Block
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            
+            //Cancel if the Turnstile does not exist
+            if (turnstile == null ) {
+                player.sendMessage("Target Block is not linked to a Turnstile");
+                return;
+            }
+        }
+        else {
+            //Find the Turnstile that will be modified using the given name
+            turnstile = SaveSystem.findTurnstile(name);
+            
+            //Cancel if the Warp does not exist
+            if (turnstile == null ) {
+                player.sendMessage("Turnstile "+name+" does not exsist.");
+                return;
+            }
+        }
+        
+        //Cancel if the Player does not own the Turnstile
+        if (!turnstile.isOwner(player)) {
+            player.sendMessage("Only the Turnstile Owner can do that.");
+            return;
+        }
+        
+        //Toggle whether the Safe is lockable
+        if (turnstile.noFraud)
+            if (bool)
+                player.sendMessage("Turnstile "+turnstile.name+" is already in NoFraud mode.");
+            else
+                player.sendMessage("Turnstile "+turnstile.name+" is no longer set to NoFraud mode.");
+        else
+            if (bool)
+                player.sendMessage("Turnstile "+turnstile.name+" set to NoFraud mode.");
+            else
+                player.sendMessage("Turnstile "+turnstile.name+" is not set to NoFraud mode.");
+        
+        turnstile.noFraud = bool;
+        SaveSystem.save();
+    }
+    
+    /**
      * Changes the Owner of the specified Turnstile
      * If a name is not provided, the Turnstile of the target Block is modified
      * 
@@ -410,7 +518,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -459,7 +567,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -508,7 +616,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -550,17 +658,22 @@ public class commandListener implements CommandExecutor {
             return;
         }
         
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(LINK_TRANSPARENT, 10);
         
         //Cancel if a correct block type is not targeted
-        if (!TurnstileMain.isSwitch(block.getTypeId())) {
-            player.sendMessage("You must link the Turnstile to a Button, Chest, or Pressure plate.");
-            return;
+        switch (block.getType()) {
+            case CHEST: //Fall through
+            case STONE_PLATE: //Fall through
+            case WOOD_PLATE: //Fall through
+            case STONE_BUTTON: break;
+            
+            default:
+                player.sendMessage("You must link the Turnstile to a Button, Chest, or Pressure plate.");
+                return;
         }
         
-        Turnstile turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
-        
         //Cancel if the Turnstile does not exist
+        Turnstile turnstile = SaveSystem.findTurnstile(block);
         if (turnstile == null) {
             player.sendMessage("Target Block is not linked to a Turnstile.");
             return;
@@ -602,7 +715,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -628,9 +741,9 @@ public class commandListener implements CommandExecutor {
         }
         
         SaveSystem.turnstiles.remove(turnstile);
-        File trash = new File("plugins/PhatLoots/"+turnstile.name+".dat");
+        File trash = new File("plugins/Turnstile/"+turnstile.name+".dat");
         trash.delete();
-        player.sendMessage("Turnstile "+name+" was deleted!");
+        player.sendMessage("Turnstile "+turnstile.name+" was deleted!");
         SaveSystem.save();
     }
     
@@ -653,7 +766,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -705,7 +818,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -750,7 +863,7 @@ public class commandListener implements CommandExecutor {
             return;
         }
         
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(LINK_TRANSPARENT, 10);
         
         //Cancel if a Chest is not targeted
         if (block.getTypeId() != 54) {
@@ -791,7 +904,7 @@ public class commandListener implements CommandExecutor {
         String list = "Current Turnstiles:  ";
         
         for (Turnstile turnstile: SaveSystem.turnstiles)
-            list.concat(turnstile.name+", ");
+            list = list.concat(turnstile.name+", ");
         
         player.sendMessage(list.substring(0, list.length()-2));
     }
@@ -814,7 +927,7 @@ public class commandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(null, 10));
+            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -843,11 +956,12 @@ public class commandListener implements CommandExecutor {
         player.sendMessage("Name: "+turnstile.name);
         player.sendMessage("Owner: "+turnstile.owner);
         player.sendMessage("Location: "+turnstile.world+"'"+turnstile.x+"'"+turnstile.y+"'"+turnstile.z);
-        player.sendMessage("Price: "+Register.format(turnstile.price));
+        player.sendMessage("Price: "+Register.format(turnstile.price)+", NoFraud: "+turnstile.noFraud);
         player.sendMessage("Item: "+turnstile.amount+" of "+turnstile.item+" with durability of "+turnstile.durability);
         player.sendMessage("MoneyEarned: "+turnstile.moneyEarned+", ItemsEarned: "+turnstile.itemsEarned);
         player.sendMessage("Free: "+turnstile.freeStart+"-"+turnstile.freeEnd);
         player.sendMessage("Locked: "+turnstile.lockedStart+"-"+turnstile.lockedEnd);
+        player.sendMessage("NoFraud: "+turnstile.noFraud);
         player.sendMessage("Access: "+turnstile.access.toString());
         String buttons = "Buttons:  ";
         for (TurnstileButton button: turnstile.buttons)
@@ -910,6 +1024,7 @@ public class commandListener implements CommandExecutor {
         player.sendMessage("§2/ts delete (Name)§b Delete Turnstile");
         player.sendMessage("§2/ts price (Name) [Price]§b Set cost of Turnstile");
         player.sendMessage("§2/ts price (Name) [Amount] [Item] (Durability)§b Set cost to item");
+        player.sendMessage("§2/ts nofraud (Name) ['true' or 'false']§b Set noFraud mode");
         player.sendMessage("§2/ts access (Name) public§b Allow anyone to open the Turnstile");
         player.sendMessage("§2/ts access (Name) private§b Allow only the Owner to open");
         player.sendMessage("§2/ts access (Name) [Group1,Group2,...]");

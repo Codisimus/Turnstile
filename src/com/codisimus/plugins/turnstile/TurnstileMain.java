@@ -179,7 +179,7 @@ public class TurnstileMain extends JavaPlugin {
         playerListener playerListener = new playerListener();
         blockListener blockListener = new blockListener();
         pm.registerEvent(Type.PLUGIN_ENABLE, new pluginListener(), Priority.Monitor, this);
-        pm.registerEvent(Type.WORLD_LOAD, new worldListener(), Priority.Normal, this);
+        pm.registerEvent(Type.WORLD_LOAD, new worldListener(), Priority.Monitor, this);
         pm.registerEvent(Type.PLAYER_MOVE, playerListener, Priority.Normal, this);
         pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
         pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
@@ -212,37 +212,5 @@ public class TurnstileMain extends JavaPlugin {
         return string.replaceAll("&", "§").replaceAll("<ae>", "æ").replaceAll("<AE>", "Æ")
                 .replaceAll("<o/>", "ø").replaceAll("<O/>", "Ø")
                 .replaceAll("<a>", "å").replaceAll("<A>", "Å");
-    }
-    
-    /**
-     * Checks if the given ID is a Button, Chest, or Pressure Plate
-     * 
-     * @param target The ID to be checked
-     * @return true if the ID is a Button, Chest, or Pressure Plate
-     */
-    public static boolean isSwitch(int id) {
-        switch (id) {
-            case 54: return true; //ID is Chest
-            case 70: return true; //ID is Stone Plate
-            case 72: return true; //ID is Wood Plate
-            case 77: return true; //ID is Button
-            default: return false;
-        }
-    }
-    
-    /**
-     * Checks if the given ID is a Door, Fence, Fence Gate, or Trap Door
-     * 
-     * @param target The ID to be checked
-     * @return true if the ID is a Door, Fence, Fence Gate, or Trap Door
-     */
-    public static boolean isDoor(int id) {
-        switch (id) {
-            case 64: return true; //ID is Wood Door
-            case 71: return true; //ID is Iron Door
-            case 324: return true; //ID is Wood Door
-            case 330: return true; //ID is Iron Door
-            default: return false;
-        }
     }
 }

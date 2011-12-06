@@ -7,12 +7,13 @@ import com.codisimus.plugins.turnstile.TurnstileMain;
 import java.util.LinkedList;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.Chest;
 import org.bukkit.entity.Player;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerListener;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.material.Door;
 
 /**
  * Listens for Players using Turnstiles
@@ -34,71 +35,82 @@ public class playerListener extends PlayerListener{
     @Override
     public void onPlayerInteract (PlayerInteractEvent event) {
         //Return if the Action was arm flailing
-        if (event.getAction().equals(Action.LEFT_CLICK_AIR) || event.getAction().equals(Action.RIGHT_CLICK_AIR))
+        Block block = event.getClickedBlock();
+        if (block == null)
             return;
         
-        Block block = event.getClickedBlock();
-        int id = block.getTypeId();
-        //Try to open a Turnstile if a linked switch was activated
-        if (TurnstileMain.isSwitch(id)) {
-            Turnstile turnstile = SaveSystem.findTurnstile(block);
-            
-            //Return if the switch is not linked to a Turnstile
-            if (turnstile == null)
-                return;
-            
-            //Return if the Turnstile is already open
-            if (turnstile.open)
-                return;
-            
-            Player player = event.getPlayer();
-            
-            //Return if the Player does not have permission to open Turnstiles
-            if (!TurnstileMain.hasPermission(player, "open")) {
-                player.sendMessage(permission);
-                return;
-            }
-            
-            //Return if the Player does not have access rights to the Turnstile
-            if (!turnstile.hasAccess(player))
-                return;
-            
-            //Return if the Turnstile is locked
-            if (turnstile.isLocked(player.getWorld().getTime())) {
-                player.sendMessage(locked);
-                return;
-            }
-            
-            //Return without charging if the Turnstile is free
-            if (turnstile.isFree(player.getWorld().getTime())) {
-                player.sendMessage(free);
-                turnstile.open(block);
-                return;
-            }
-            
-            //Charge with items if the switch is a Chest
-            if (block.getTypeId() == 54) {
-                turnstile.checkContents((Chest)block.getState(), player);
-                return;
-            }
-            
-            if (turnstile.noFraud) {
-                turnstile.open(block);
+        switch (block.getType()) {
+            case WOOD_DOOR: //Fall through
+            case WOODEN_DOOR: //Cancel event if the Wood Door of a Turnstile was clicked
+                block = ((Door)block.getState().getData()).isTopHalf() ?
+                        block.getRelative(BlockFace.DOWN) : block;
                 
-                if (turnstile.price == 0)
+                for (Turnstile turnstile: SaveSystem.turnstiles)
+                    if (turnstile.isBlock(block)) {
+                        event.setCancelled(true);
+                        return;
+                    }
+                
+                return;
+                
+            case CHEST: //Fall through
+            case STONE_PLATE: //Fall through
+            case WOOD_PLATE: //Fall through
+            case STONE_BUTTON: //Try to open a Turnstile if a linked switch was activated
+                //Return if the switch is not linked to a Turnstile
+                Turnstile turnstile = SaveSystem.findTurnstile(block);
+                if (turnstile == null)
+                    return;
+
+                //Return if the Turnstile is already open
+                if (turnstile.open)
+                    return;
+
+                //Return if the Player does not have permission to open Turnstiles
+                Player player = event.getPlayer();
+                if (!TurnstileMain.hasPermission(player, "open")) {
+                    player.sendMessage(permission);
+                    return;
+                }
+
+                //Return if the Player does not have access rights to the Turnstile
+                if (!turnstile.hasAccess(player))
+                    return;
+
+                //Return if the Turnstile is locked
+                if (turnstile.isLocked(player.getWorld().getTime())) {
+                    player.sendMessage(locked);
+                    return;
+                }
+
+                //Open Turnstile and Return without charging if the Turnstile is free
+                if (turnstile.isFree(player.getWorld().getTime())) {
                     player.sendMessage(free);
-                else
-                    player.sendMessage(TurnstileMain.displayCost.replaceAll("<price>", ""+Register.format(turnstile.price)));
-            }
-            else if (turnstile.checkBalance(player))
-                turnstile.open(block);
+                    turnstile.open(block);
+                    return;
+                }
+
+                //Charge with items if the switch is a Chest
+                if (block.getTypeId() == 54) {
+                    turnstile.checkContents((Chest)block.getState(), player);
+                    return;
+                }
+
+                if (turnstile.noFraud) {
+                    turnstile.open(block);
+
+                    if (turnstile.price == 0)
+                        player.sendMessage(free);
+                    else
+                        player.sendMessage(TurnstileMain.displayCost.replaceAll("<price>", ""+Register.format(turnstile.price)));
+                }
+                else if (turnstile.checkBalance(player))
+                    turnstile.open(block);
+                
+                return;
+                
+            default: return;
         }
-        //Cancel event if the Wood Door of a Turnstile was clicked
-        else if (id == 64 || id == 324)
-            for (Turnstile turnstile: SaveSystem.turnstiles) {
-                if (turnstile.isBlock(block) || turnstile.isNeighbor(block))
-                    event.setCancelled(true);
-            }
     }
 
     /**
@@ -121,17 +133,21 @@ public class playerListener extends PlayerListener{
                 Location from = event.getFrom();
                 Player player = event.getPlayer();
 
-                //Teleport Player back where they came from if they entered the Turnstile backwards
+                //Send the Player back to the previous Block if they entered the Turnstile backwards
                 if (turnstile.oneWay && !turnstile.checkOneWay(from.getBlock())) {
-                    from.setX(from.getBlockX()+.5);
-                    from.setY(from.getBlockY());
-                    from.setZ(from.getBlockZ()+.5);
-                    player.teleport(from);
+                    event.setTo(from);
                     player.sendMessage(oneWay);
                     return;
                 }
 
                 turnstile.close();
+                
+                //Send the Player to the middle of the Block
+                Location middle = to.getLocation().add(0.5, 0, 0.5);
+                Location playerLocation = player.getLocation();
+                middle.setPitch(playerLocation.getPitch());
+                middle.setYaw(playerLocation.getYaw());
+                event.setTo(middle);
 
                 //If NoFraud mode is off, the Player already payed so Return without charging
                 if (!turnstile.noFraud)
@@ -141,12 +157,10 @@ public class playerListener extends PlayerListener{
                 if (turnstile.isFree(player.getWorld().getTime()))
                     return;
 
-                //Teleport Player back where they came from if they could not pay
+                //Send the Player back to the previous Block if they could not pay
                 if (!turnstile.checkBalance(player)) {
-                    from.setX(from.getBlockX()+.5);
-                    from.setY(from.getBlockY());
-                    from.setZ(from.getBlockZ()+.5);
-                    player.teleport(from);
+                    event.setTo(from);
+                    return;
                 }
                 
                 return;

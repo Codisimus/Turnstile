@@ -20,6 +20,9 @@ permissions:
   turnstile.set.price:
     default: op
     description: Needed to set the price of a Turnstile (/ts price)
+  turnstile.set.nofraud:
+    default: op
+    description: Needed to change whether a Turnstile is in NoFraud mode (/ts nofraud)
   turnstile.set.owner:
     default: op
     description: Needed to the owner of a Turnstile (/ts owner)

@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.Chest;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -72,11 +73,10 @@ public class Turnstile {
      * @param name The name of the Turnstile which cannot already exist
      * @param creator The Player who is creating the Turnstile and also the default owner
      */
-    public Turnstile (String name, Player creator) {
+    public Turnstile (String name, String owner, Block block) {
         this.name = name;
-        this.owner = creator.getName();
-        world = creator.getWorld().getName();
-        Block block = creator.getTargetBlock(null, 100);
+        this.owner = owner;
+        world = block.getWorld().getName();
         x = block.getX();
         y = block.getY();
         z = block.getZ();
@@ -90,8 +90,8 @@ public class Turnstile {
      */
     public boolean checkOneWay(Block from) {
         switch (openedFrom) {
-            case SOUTH: return from.getX() < x;
-            case NORTH: return from.getX() > x;
+            case NORTH: return from.getX() < x;
+            case SOUTH: return from.getX() > x;
             case EAST: return from.getZ() < z;
             case WEST: return from.getZ() > z;
             default: return true;
@@ -213,36 +213,33 @@ public class Turnstile {
             @Override
             public void run() {
                 Block block = TurnstileMain.server.getWorld(world).getBlockAt(x, y, z);
-                Door door;
-
+                
                 //Determine the type of the gate to know how to open it
-                switch (block.getTypeId()) {
-                    case 85: block.setTypeId(0); break; //Change FENCE to AIR
-                    //case 96: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Open TrapDoor
-                    //case 107: break; //Open FenceGate
+                switch (block.getType()) {
+                    case FENCE: block.setTypeId(0); break; //Change FENCE to AIR
+                    //case TRAP_DOOR: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Open TrapDoor
+                    //case FENCE_GATE: break; //Open FenceGate
 
-                    case 64: //Open Door
-                        door = (Door)block.getState().getData();
-                        if (door.isOpen())
-                            door.setOpen(true);
-                        break;
+                    case WOOD_DOOR: //Fall through
+                    case WOODEN_DOOR: //Fall through
+                    case IRON_DOOR: //Fall through
+                    case IRON_DOOR_BLOCK: //Open Door
+                        //Convert the Block to a Door
+                        BlockState state = block.getState();
+                        Door door = (Door)state.getData();
 
-                    case 71: //Open Door
-                        door = (Door)block.getState().getData();
-                        if (door.isOpen())
-                            door.setOpen(true);
-                        break;
+                        //Open the Door
+                        door.setOpen(true);
+                        state.update();
 
-                    case 324: //Open Door
-                        door = (Door)block.getState().getData();
-                        if (door.isOpen())
-                            door.setOpen(true);
-                        break;
+                        //Get the other half of the Door
+                        state = block.getRelative(BlockFace.UP).getState();
+                        door = (Door)state.getData();
 
-                    case 330: //Open Door
-                        door = (Door)block.getState().getData();
-                        if (door.isOpen())
-                            door.setOpen(true);
+                        //Open the Door
+                        door.setOpen(true);
+                        state.update();
+                        
                         break;
 
                     default: break;
@@ -253,7 +250,8 @@ public class Turnstile {
                     return;
                 
                 //Increment the instance and set what instance this open is
-                int temp = instance++;
+                instance++;
+                int temp = instance;
                 
                 //Leave gate open for specific amount of time
                 try {
@@ -276,39 +274,36 @@ public class Turnstile {
      */
     public void close() {
         Block block = TurnstileMain.server.getWorld(world).getBlockAt(x, y, z);
-        Door door;
 
         //Determine the type of the gate to know how to close it
-        switch (block.getTypeId()) {
-            case 0: block.setTypeId(85); break; //Change AIR to FENCE
-            //case 96: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Close TrapDoor
-            //case 107: break; //Close FenceGate
+        switch (block.getType()) {
+            //case FENCE: block.setTypeId(85); break; //Change AIR to FENCE
+            //case TRAP_DOOR: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Close TrapDoor
+            //case FENCE_GATE: break; //Close FenceGate
 
-            case 64: //Close Door
-                door = (Door)block.getState().getData();
-                if (door.isOpen())
-                    door.setOpen(false);
+            case WOOD_DOOR: //Fall through
+            case WOODEN_DOOR: //Fall through
+            case IRON_DOOR: //Fall through
+            case IRON_DOOR_BLOCK: //Open Door
+                //Convert the Block to a Door
+                BlockState state = block.getState();
+                Door door = (Door)state.getData();
+                
+                //Open the Door
+                door.setOpen(false);
+                state.update();
+
+                //Get the other half of the Door
+                state = block.getRelative(BlockFace.UP).getState();
+                door = (Door)state.getData();
+                
+                //Open the Door
+                door.setOpen(false);
+                state.update();
+
                 break;
 
-            case 71: //Close Door
-                door = (Door)block.getState().getData();
-                if (door.isOpen())
-                    door.setOpen(false);
-                break;
-
-            case 324: //Close Door
-                door = (Door)block.getState().getData();
-                if (door.isOpen())
-                    door.setOpen(false);
-                break;
-
-            case 330: //Close Door
-                door = (Door)block.getState().getData();
-                if (door.isOpen())
-                    door.setOpen(false);
-                break;
-
-            default: break;
+            default: block.setTypeId(85); break; //Change AIR to FENCE
         }
         
         open = false;
@@ -388,7 +383,8 @@ public class Turnstile {
             return true;
         
         //Return true if Player is the owner of the Turnstile's bank
-        if (owner.substring(0, 5).equalsIgnoreCase("bank:") && Register.isBankOwner(owner.substring(5), player.getName()))
+        if (owner.substring(0, 5).equalsIgnoreCase("bank:") &&
+                Register.isBankOwner(owner.substring(5), player.getName()))
             return true;
         
         //Return true if Player has the Permission to ignore owner rights
@@ -410,17 +406,13 @@ public class Turnstile {
             return;
         
         //Determine the type of the Block to find out the direction opened from
-        int id = block.getTypeId();
-        switch (id) {
-            case 54: //Material == Chest
-                openedFrom = BlockFace.SELF; //OneWay does not effect paying with items
-                break;
+        switch (block.getType()) {
+            case CHEST: openedFrom = BlockFace.SELF; return; //OneWay does not effect paying with items
+            
+            case STONE_BUTTON: openedFrom = ((Button)block.getState().getData()).getFacing(); return;
 
-            case 77: //Material == Stone Button
-                openedFrom = ((Button)block.getState().getData()).getFacing();
-                break;
-
-            default: //Material == Stone Plate || Wood Plate
+            case WOOD_PLATE: //Fall through
+            case STONE_PLATE:
                 if (block.getX() < x)
                     openedFrom = BlockFace.NORTH;
                 else if (block.getX() > x)
@@ -431,7 +423,10 @@ public class Turnstile {
                     openedFrom = BlockFace.WEST;
                 else
                     openedFrom = BlockFace.SELF;
-                break;
+                
+                return;
+                
+            default: return;
         }
     }
 
@@ -452,28 +447,6 @@ public class Turnstile {
             return false;
 
         return block.getWorld().getName().equals(world);
-    }
-    
-    /**
-     * Returns whether the given Block is above or below the other given Block
-     * 
-     * @param blockOne The first Block to be compared
-     * @param blockTwo The second Block to be compared
-     * @return true if the given Block is above or below the other given Block
-     */
-    public boolean isNeighbor(Block block) {
-        if (block.getX() != x)
-            return false;
-        
-        if (block.getZ() != z)
-            return false;
-        
-        if (block.getWorld().getName().equals(world))
-            return false;
-        
-        int b = block.getY();
-        
-        return b == y + 1 || b == y - 1;
     }
 
     /**
