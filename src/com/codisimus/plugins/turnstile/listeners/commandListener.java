@@ -1,6 +1,6 @@
 package com.codisimus.plugins.turnstile.listeners;
 
-import com.codisimus.plugins.turnstile.Register;
+import com.codisimus.plugins.turnstile.Econ;
 import com.codisimus.plugins.turnstile.SaveSystem;
 import com.codisimus.plugins.turnstile.Turnstile;
 import com.codisimus.plugins.turnstile.TurnstileButton;
@@ -25,7 +25,7 @@ import org.bukkit.material.Door;
  * 
  * @author Codisimus
  */
-public class commandListener implements CommandExecutor {
+public class CommandListener implements CommandExecutor {
     public static enum Action {
         HELP, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
         DELETE, FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME
@@ -210,8 +210,8 @@ public class commandListener implements CommandExecutor {
                 
             case INFO:
                 switch (args.length) {
-                    case 2: info(player, null); return true;
-                    case 3: info(player, args[1]); return true;
+                    case 1: info(player, null); return true;
+                    case 2: info(player, args[1]); return true;
                     default: sendHelp(player); return true;
                 }
                 
@@ -267,7 +267,7 @@ public class commandListener implements CommandExecutor {
         int price = TurnstileMain.cost;
         if (price > 0 && (!TurnstileMain.useMakeFreeNode || !TurnstileMain.hasPermission(player, "makefree"))) {
             //Cancel if the Player could not afford it
-            if (!Register.charge(player.getName(), null, price)) {
+            if (!Econ.charge(player.getName(), null, price)) {
                 player.sendMessage("You do not have enough money to make the Turnstile");
                 return;
             }
@@ -384,7 +384,8 @@ public class commandListener implements CommandExecutor {
         turnstile.durability = durability;
         turnstile.itemsEarned = 0;
         
-        player.sendMessage("Price of Turnstile "+name+" has been set to "+amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
+        player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "
+                +amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
         SaveSystem.save();
     }
     
@@ -434,7 +435,7 @@ public class commandListener implements CommandExecutor {
         
         //Set price to money amount or -411 to take all the Players money
         turnstile.price = price;
-        player.sendMessage("Price of Turnstile "+name+" has been set to "+price+"!");
+        player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "+price+"!");
 
         SaveSystem.save();
     }
@@ -544,7 +545,7 @@ public class commandListener implements CommandExecutor {
         }
         
         turnstile.owner = owner;
-        player.sendMessage("Money from Turnstile "+name+" will go to "+owner+"!");
+        player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+owner+"!");
         SaveSystem.save();
     }
     
@@ -592,8 +593,13 @@ public class commandListener implements CommandExecutor {
             return;
         }
         
-        turnstile.access = (LinkedList<String>)Arrays.asList(access.split(","));
-        player.sendMessage("Access to Turnstile "+name+" has been set to "+access+"!");
+        turnstile.access = new LinkedList<String>();
+        if (access.contains(","))
+            turnstile.access.addAll(Arrays.asList(access.split(",")));
+        else
+            turnstile.access.add(access);
+        
+        player.sendMessage("Access to Turnstile "+turnstile.name+" has been set to "+access+"!");
         SaveSystem.save();
     }
     
@@ -642,7 +648,7 @@ public class commandListener implements CommandExecutor {
         }
         
         turnstile.owner = "bank:"+bank;
-        player.sendMessage("Money from Turnstile "+name+" will go to "+bank+"!");
+        player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+bank+"!");
         SaveSystem.save();
     }
     
@@ -795,7 +801,7 @@ public class commandListener implements CommandExecutor {
         String[] time = range.split("-");
         turnstile.freeStart = Long.parseLong(time[0]);
         turnstile.freeEnd = Long.parseLong(time[1]);
-        player.sendMessage("Turnstile "+name+" is free to use from "+time[0]+" to "+time[1]+"!");
+        player.sendMessage("Turnstile "+turnstile.name+" is free to use from "+time[0]+" to "+time[1]+"!");
         SaveSystem.save();
     }
     
@@ -847,7 +853,7 @@ public class commandListener implements CommandExecutor {
         String[] time = range.split("-");
         turnstile.lockedStart = Long.parseLong(time[0]);
         turnstile.lockedEnd = Long.parseLong(time[1]);
-        player.sendMessage("Turnstile "+name+" is locked from "+time[0]+" to "+time[1]+"!");
+        player.sendMessage("Turnstile "+turnstile.name+" is locked from "+time[0]+" to "+time[1]+"!");
         SaveSystem.save();
     }
     
@@ -956,16 +962,23 @@ public class commandListener implements CommandExecutor {
         player.sendMessage("Name: "+turnstile.name);
         player.sendMessage("Owner: "+turnstile.owner);
         player.sendMessage("Location: "+turnstile.world+"'"+turnstile.x+"'"+turnstile.y+"'"+turnstile.z);
-        player.sendMessage("Price: "+Register.format(turnstile.price)+", NoFraud: "+turnstile.noFraud);
         player.sendMessage("Item: "+turnstile.amount+" of "+turnstile.item+" with durability of "+turnstile.durability);
-        player.sendMessage("MoneyEarned: "+turnstile.moneyEarned+", ItemsEarned: "+turnstile.itemsEarned);
-        player.sendMessage("Free: "+turnstile.freeStart+"-"+turnstile.freeEnd);
+        
+        //Only display if an Economy plugin is present
+        if (Econ.economy != null) {
+            player.sendMessage("Price: "+Econ.format(turnstile.price)+", NoFraud: "+turnstile.noFraud);
+            player.sendMessage("MoneyEarned: "+turnstile.moneyEarned+", ItemsEarned: "+turnstile.itemsEarned);
+            player.sendMessage("Free: "+turnstile.freeStart+"-"+turnstile.freeEnd);
+        }
+        
         player.sendMessage("Locked: "+turnstile.lockedStart+"-"+turnstile.lockedEnd);
         player.sendMessage("NoFraud: "+turnstile.noFraud);
         player.sendMessage("Access: "+turnstile.access.toString());
+        
         String buttons = "Buttons:  ";
         for (TurnstileButton button: turnstile.buttons)
             buttons.concat(button.toString()+", ");
+        
         player.sendMessage(buttons.substring(0, buttons.length() - 2));
     }
     
@@ -1035,6 +1048,6 @@ public class commandListener implements CommandExecutor {
         player.sendMessage("§2/ts owner (Name) [Player]§b Send money for Turnstile to Player");
         player.sendMessage("§2/ts bank (Name) [Bank]§b Send money for Turnstile to Bank");
         player.sendMessage("§2/ts list§b List all Turnstiles");
-        player.sendMessage("§2/ts info (name)§b Display info of Turnstile");
+        player.sendMessage("§2/ts info (Name)§b Display info of Turnstile");
     }
 }

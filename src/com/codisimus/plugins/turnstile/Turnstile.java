@@ -1,6 +1,6 @@
 package com.codisimus.plugins.turnstile;
 
-import com.codisimus.plugins.turnstile.listeners.playerListener;
+import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
 import java.util.LinkedList;
 import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
@@ -147,9 +147,11 @@ public class Turnstile {
         if (TurnstileMain.useOpenFreeNode && TurnstileMain.hasPermission(player, "openfree"))
             return true;
         
+        String playerName = player.getName();
+                
         //Clear the Player's account if the price is set to -411 (All)
         if (price == -411) {
-            Register.clearBalance(player.getName());
+            Econ.economy.withdrawPlayer(playerName, Econ.economy.getBalance(playerName));
             player.sendMessage(TurnstileMain.balanceCleared);
             return true;
         }
@@ -159,13 +161,13 @@ public class Turnstile {
             return true;
         
         //Return false if the Player could not afford the transaction
-        if (!Register.charge(player.getName(), owner, price)) {
+        if (!Econ.charge(playerName, owner, price)) {
             player.sendMessage(TurnstileMain.notEnoughMoney);
             return false;
         }
         
         //Return true after incrementing earned by the price
-        player.sendMessage(TurnstileMain.open.replaceAll("<price>", ""+Register.format(price)));
+        player.sendMessage(TurnstileMain.open.replaceAll("<price>", Econ.format(price)));
         moneyEarned = moneyEarned + price;
         return true;
     }
@@ -190,7 +192,7 @@ public class Turnstile {
         else
             //Return true if the Player is in a group that has access
             for (String group: access)
-                if (!TurnstileMain.permissions.getUser(player).inGroup(group))
+                if (!TurnstileMain.permission.playerInGroup(player, group))
                     return true;
         
         //Return false because the Player does not have access rights
@@ -206,7 +208,7 @@ public class Turnstile {
     public void open(Block block) {
         open = true;
         setOpenedFrom(block);
-        playerListener.openTurnstiles.add(this);
+        PlayerEventListener.openTurnstiles.add(this);
         
         //Start a new thread
         Thread thread = new Thread() {
@@ -307,7 +309,7 @@ public class Turnstile {
         }
         
         open = false;
-        playerListener.openTurnstiles.remove(this);
+        PlayerEventListener.openTurnstiles.remove(this);
     }
     
     /**
@@ -378,13 +380,15 @@ public class Turnstile {
      * @return true if the player is an owner
      */
     public boolean isOwner(Player player) {
+        String playerName = player.getName();
+        
         //Return true if Player is the owner
-        if (player.getName().equalsIgnoreCase(owner))
+        if (playerName.equalsIgnoreCase(owner))
             return true;
         
         //Return true if Player is the owner of the Turnstile's bank
         if (owner.substring(0, 5).equalsIgnoreCase("bank:") &&
-                Register.isBankOwner(owner.substring(5), player.getName()))
+                Econ.economy.isBankOwner(owner.substring(5), playerName).transactionSuccess())
             return true;
         
         //Return true if Player has the Permission to ignore owner rights
@@ -456,10 +460,15 @@ public class Turnstile {
      * @return True if the Location data is the same
      */
     public boolean hasBlock(Block block) {
+        //Return True if the Trendulla Block matches the given Block
+        if (block.getX() == x && block.getY() == y &&
+                block.getZ() == z && block.getWorld().getName().equals(world))
+            return true;
+        
         //Iterate through the data to find a TurnstileButton that matches the given Block
         for (TurnstileButton button: buttons)
             if (block.getX() == button.x && block.getY() == button.y &&
-            block.getZ() == button.z && block.getWorld().getName().equals(button.world))
+                    block.getZ() == button.z && block.getWorld().getName().equals(button.world))
                 return true;
 
         //Return false because no Button was found

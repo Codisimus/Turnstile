@@ -1,10 +1,9 @@
 package com.codisimus.plugins.turnstile;
 
-import com.codisimus.plugins.turnstile.listeners.worldListener;
-import com.codisimus.plugins.turnstile.listeners.blockListener;
-import com.codisimus.plugins.turnstile.listeners.commandListener;
-import com.codisimus.plugins.turnstile.listeners.pluginListener;
-import com.codisimus.plugins.turnstile.listeners.playerListener;
+import com.codisimus.plugins.turnstile.listeners.WorldLoadListener;
+import com.codisimus.plugins.turnstile.listeners.BlockEventListener;
+import com.codisimus.plugins.turnstile.listeners.CommandListener;
+import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -15,13 +14,15 @@ import java.io.OutputStream;
 import java.util.Properties;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
+import net.milkbowl.vault.economy.Economy;
+import net.milkbowl.vault.permission.Permission;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Priority;
 import org.bukkit.event.Event.Type;
 import org.bukkit.plugin.PluginManager;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
-import ru.tehkode.permissions.PermissionManager;
 
 /**
  * Loads Plugin and manages Permissions
@@ -30,7 +31,7 @@ import ru.tehkode.permissions.PermissionManager;
  */
 public class TurnstileMain extends JavaPlugin {
     public static int cost = 0;
-    public static PermissionManager permissions;
+    public static Permission permission;
     public static PluginManager pm;
     public static Server server;
     public static int defaultTimeOut;
@@ -55,7 +56,7 @@ public class TurnstileMain extends JavaPlugin {
     public void onDisable () {
         //Close all open Turnstiles
         System.out.println("[Turnstile] Closing all open Turnstiles...");
-        for (Turnstile turnstile: playerListener.openTurnstiles)
+        for (Turnstile turnstile: PlayerEventListener.openTurnstiles)
             turnstile.close();
     }
 
@@ -67,21 +68,36 @@ public class TurnstileMain extends JavaPlugin {
     public void onEnable () {
         server = getServer();
         pm = server.getPluginManager();
-        checkFiles();
+        
+        //Load Config settings
         loadConfig();
+        
+        //Find Permissions
+        RegisteredServiceProvider<Permission> permissionProvider =
+                getServer().getServicesManager().getRegistration(net.milkbowl.vault.permission.Permission.class);
+        if (permissionProvider != null)
+            permission = permissionProvider.getProvider();
+        
+        //Find Economy
+        RegisteredServiceProvider<Economy> economyProvider =
+                getServer().getServicesManager().getRegistration(net.milkbowl.vault.economy.Economy.class);
+        if (economyProvider != null)
+            Econ.economy = economyProvider.getProvider();
+        
+        //Load Turnstiles Data
         SaveSystem.load(null);
-        registerEvents();
-        getCommand("turnstile").setExecutor(new commandListener());
+        
+        //Register Events
+        PlayerEventListener playerListener = new PlayerEventListener();
+        BlockEventListener blockListener = new BlockEventListener();
+        pm.registerEvent(Type.WORLD_LOAD, new WorldLoadListener(), Priority.Monitor, this);
+        pm.registerEvent(Type.PLAYER_MOVE, playerListener, Priority.Normal, this);
+        pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
+        pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
+        pm.registerEvent(Type.BLOCK_BREAK, blockListener, Priority.Normal, this);
+        getCommand("turnstile").setExecutor(new CommandListener());
+        
         System.out.println("Turnstile "+this.getDescription().getVersion()+" is enabled!");
-    }
-
-    /**
-     * Makes sure all needed files exist
-     *
-     */
-    public void checkFiles() {
-        if (!new File("plugins/Turnstile/config.properties").exists())
-            moveFile("config.properties");
     }
     
     /**
@@ -130,29 +146,37 @@ public class TurnstileMain extends JavaPlugin {
     public void loadConfig() {
         p = new Properties();
         try {
+            //Copy the file from the jar if it is missing
+            if (!new File("plugins/Turnstile/config.properties").exists())
+                moveFile("config.properties");
+            
             p.load(new FileInputStream("plugins/Turnstile/config.properties"));
+            
+            cost = Integer.parseInt(loadValue("CostToMakeTurnstile"));
+            
+            defaultOneWay = Boolean.parseBoolean(loadValue("OneWayByDefault"));
+            defaultNoFraud = Boolean.parseBoolean(loadValue("NoFraudByDefault"));
+            defaultTimeOut = Integer.parseInt(loadValue("DefaultAutoCloseTimer"));
+            
+            useOpenFreeNode = Boolean.parseBoolean(loadValue("use'openfree'node"));
+            useMakeFreeNode = Boolean.parseBoolean(loadValue("use'makefree'node"));
+            
+            PlayerEventListener.permission = format(loadValue("PermissionMessage"));
+            PlayerEventListener.locked = format(loadValue("LockedMessage"));
+            PlayerEventListener.free = format(loadValue("FreeMessage"));
+            PlayerEventListener.oneWay = format(loadValue("OneWayMessage"));
+            correct = format(loadValue("CorrectItemMessage"));
+            wrong = format(loadValue("WrongItemMessage"));
+            notEnoughMoney = format(loadValue("NotEnoughMoneyMessage"));
+            displayCost = format(loadValue("DisplayCostMessage"));
+            open = format(loadValue("OpenMessage"));
+            balanceCleared = format(loadValue("BalanceClearedMessage"));
+            privateTurnstile = format(loadValue("PrivateMessage"));
         }
-        catch (Exception e) {
+        catch (Exception missingProp) {
+            System.err.println("Failed to load ButtonWarp "+this.getDescription().getVersion());
+            missingProp.printStackTrace();
         }
-        cost = Integer.parseInt(loadValue("CostToMakeTurnstile"));
-        Register.economy = loadValue("Economy");
-        pluginListener.useBP = Boolean.parseBoolean(loadValue("UseBukkitPermissions"));
-        defaultOneWay = Boolean.parseBoolean(loadValue("OneWayByDefault"));
-        defaultNoFraud = Boolean.parseBoolean(loadValue("NoFraudByDefault"));
-        defaultTimeOut = Integer.parseInt(loadValue("DefaultAutoCloseTimer"));
-        useOpenFreeNode = Boolean.parseBoolean(loadValue("use'openfree'node"));
-        useMakeFreeNode = Boolean.parseBoolean(loadValue("use'makefree'node"));
-        playerListener.permission = format(loadValue("PermissionMessage"));
-        playerListener.locked = format(loadValue("LockedMessage"));
-        playerListener.free = format(loadValue("FreeMessage"));
-        playerListener.oneWay = format(loadValue("OneWayMessage"));
-        correct = format(loadValue("CorrectItemMessage"));
-        wrong = format(loadValue("WrongItemMessage"));
-        notEnoughMoney = format(loadValue("NotEnoughMoneyMessage"));
-        displayCost = format(loadValue("DisplayCostMessage"));
-        open = format(loadValue("OpenMessage"));
-        balanceCleared = format(loadValue("BalanceClearedMessage"));
-        privateTurnstile = format(loadValue("PrivateMessage"));
     }
     
     /**
@@ -172,21 +196,6 @@ public class TurnstileMain extends JavaPlugin {
     }
     
     /**
-     * Registers events for the Turnstile Plugin
-     *
-     */
-    public void registerEvents() {
-        playerListener playerListener = new playerListener();
-        blockListener blockListener = new blockListener();
-        pm.registerEvent(Type.PLUGIN_ENABLE, new pluginListener(), Priority.Monitor, this);
-        pm.registerEvent(Type.WORLD_LOAD, new worldListener(), Priority.Monitor, this);
-        pm.registerEvent(Type.PLAYER_MOVE, playerListener, Priority.Normal, this);
-        pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
-        pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
-        pm.registerEvent(Type.BLOCK_BREAK, blockListener, Priority.Normal, this);
-    }
-    
-    /**
      * Returns boolean value of whether the given player has the specific permission
      * 
      * @param player The Player who is being checked for permission
@@ -194,12 +203,7 @@ public class TurnstileMain extends JavaPlugin {
      * @return true if the given player has the specific permission
      */
     public static boolean hasPermission(Player player, String type) {
-        //Check if a Permission Plugin is present
-        if (permissions != null)
-            return permissions.has(player, "turnstile."+type);
-
-        //Return Bukkit Permission value
-        return player.hasPermission("turnstile."+type);
+        return permission.has(player, "turnstile."+type);
     }
     
     /**

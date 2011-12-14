@@ -1,10 +1,11 @@
 name: Turnstile
 main: com.codisimus.plugins.turnstile.TurnstileMain
-version: 2.0.5 dev
+version: 2.1.2
 author: Codisimus
 website: www.codisimus.com
 description: Charge players money/items to enter an area
 startup: postworld
+depend: [Vault]
 commands:
   turnstile:
     description: Used to setup and manage Turnstiles
