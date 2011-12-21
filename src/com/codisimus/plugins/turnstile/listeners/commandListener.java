@@ -1,7 +1,6 @@
 package com.codisimus.plugins.turnstile.listeners;
 
 import com.codisimus.plugins.turnstile.Econ;
-import com.codisimus.plugins.turnstile.SaveSystem;
 import com.codisimus.plugins.turnstile.Turnstile;
 import com.codisimus.plugins.turnstile.TurnstileButton;
 import com.codisimus.plugins.turnstile.TurnstileMain;
@@ -26,11 +25,11 @@ import org.bukkit.material.Door;
  * @author Codisimus
  */
 public class CommandListener implements CommandExecutor {
-    public static enum Action {
+    private static enum Action {
         HELP, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
         DELETE, FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME
     }
-    public static final HashSet MAKE_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
+    private static final HashSet MAKE_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
             (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
             (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
             (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)65,
@@ -38,7 +37,7 @@ public class CommandListener implements CommandExecutor {
             (byte)77, (byte)78, (byte)90, (byte)92, (byte)101, (byte)102, (byte)104,
             (byte)105, (byte)106, (byte)108, (byte)109, (byte)111, (byte)114,
             (byte)115, (byte)117);
-    public static final HashSet LINK_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
+    private static final HashSet LINK_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
             (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
             (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
             (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)64,
@@ -46,14 +45,13 @@ public class CommandListener implements CommandExecutor {
             (byte)85, (byte)90, (byte)92, (byte)96, (byte)101, (byte)102, (byte)104,
             (byte)105, (byte)106, (byte)107, (byte)108, (byte)109, (byte)111,
             (byte)113, (byte)114, (byte)115, (byte)117);
-    public static final HashSet TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
+    private static final HashSet TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
             (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
             (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
             (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)65,
             (byte)66, (byte)67, (byte)75, (byte)76, (byte)78, (byte)90, (byte)92,
             (byte)101, (byte)102, (byte)104, (byte)105, (byte)106, (byte)108,
             (byte)109, (byte)111, (byte)114, (byte)115, (byte)117);
-    public static String permissionMsg;
     
     /**
      * Listens for Turnstile commands to execute them
@@ -232,15 +230,15 @@ public class CommandListener implements CommandExecutor {
      * @param player The Player creating the Turnstile
      * @param name The name of the Turnstile being created (must not already exist)
      */
-    public static void make(Player player, String name) {
+    private static void make(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
         //Cancel if the Turnstile already exists
-        if (SaveSystem.findTurnstile(name) != null) {
+        if (TurnstileMain.findTurnstile(name) != null) {
             player.sendMessage("A Turnstile named "+name+" already exists.");
             return;
         }
@@ -277,8 +275,8 @@ public class CommandListener implements CommandExecutor {
         
         Turnstile turnstile = new Turnstile(name, player.getName(), block);
         player.sendMessage("Turnstile "+name+" made!");
-        SaveSystem.turnstiles.add(turnstile);
-        SaveSystem.save();
+        TurnstileMain.turnstiles.add(turnstile);
+        TurnstileMain.save();
     }
     
     /**
@@ -287,10 +285,10 @@ public class CommandListener implements CommandExecutor {
      * @param player The Player linking the Block they are targeting
      * @param name The name of the Turnstile the Block will be linked to
      */
-    public static void link(Player player, String name) {
+    private static void link(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -308,7 +306,7 @@ public class CommandListener implements CommandExecutor {
                 return;
         }
         
-        Turnstile turnstile = SaveSystem.findTurnstile(name);
+        Turnstile turnstile = TurnstileMain.findTurnstile(name);
         
         //Cancel if the Turnstile does not exist
         if (turnstile == null) {
@@ -324,7 +322,7 @@ public class CommandListener implements CommandExecutor {
         
         turnstile.buttons.add(new TurnstileButton(block));
         player.sendMessage("Succesfully linked to Turnstile "+name+"!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -337,10 +335,10 @@ public class CommandListener implements CommandExecutor {
      * @param item The id or String of the item Material
      * @param durability The Durability of the item
      */
-    public static void price(Player player, String name, int amount, String item, short durability) {
+    private static void price(Player player, String name, int amount, String item, short durability) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.price")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -348,7 +346,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -358,7 +356,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -386,7 +384,7 @@ public class CommandListener implements CommandExecutor {
         
         player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "
                 +amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -397,10 +395,10 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being modified
      * @param price The new price
      */
-    public static void price(Player player, String name, double price) {
+    private static void price(Player player, String name, double price) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.price")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -408,7 +406,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -418,7 +416,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -437,7 +435,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.price = price;
         player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "+price+"!");
 
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -448,10 +446,10 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being modified
      * @param bool True if the Turnstile will be set to noFraud mode
      */
-    public static void noFraud(Player player, String name, boolean bool) {
+    private static void noFraud(Player player, String name, boolean bool) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.nofraud")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -459,7 +457,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -469,7 +467,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -497,7 +495,7 @@ public class CommandListener implements CommandExecutor {
                 player.sendMessage("Turnstile "+turnstile.name+" is not set to NoFraud mode.");
         
         turnstile.noFraud = bool;
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -508,10 +506,10 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being modified
      * @param owner The new Owner
      */
-    public static void owner(Player player, String name, String owner) {
+    private static void owner(Player player, String name, String owner) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.owner")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -519,7 +517,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -529,7 +527,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -546,7 +544,7 @@ public class CommandListener implements CommandExecutor {
         
         turnstile.owner = owner;
         player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+owner+"!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -557,10 +555,10 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being modified
      * @param access The new access value
      */
-    public static void access(Player player, String name, String access) {
+    private static void access(Player player, String name, String access) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.access")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -568,7 +566,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -578,7 +576,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -600,7 +598,7 @@ public class CommandListener implements CommandExecutor {
             turnstile.access.add(access);
         
         player.sendMessage("Access to Turnstile "+turnstile.name+" has been set to "+access+"!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -611,10 +609,10 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being modified
      * @param bank The new bank value
      */
-    public static void bank(Player player, String name, String bank) {
+    private static void bank(Player player, String name, String bank) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.bank")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -622,7 +620,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -632,7 +630,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -649,7 +647,7 @@ public class CommandListener implements CommandExecutor {
         
         turnstile.owner = "bank:"+bank;
         player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+bank+"!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -657,10 +655,10 @@ public class CommandListener implements CommandExecutor {
      * 
      * @param player The Player unlinking the Block they are targeting
      */
-    public static void unlink(Player player) {
+    private static void unlink(Player player) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -679,7 +677,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         //Cancel if the Turnstile does not exist
-        Turnstile turnstile = SaveSystem.findTurnstile(block);
+        Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             player.sendMessage("Target Block is not linked to a Turnstile.");
             return;
@@ -700,7 +698,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         player.sendMessage("Sucessfully unlinked!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -710,10 +708,10 @@ public class CommandListener implements CommandExecutor {
      * @param player The Player deleting the Turnstile
      * @param name The name of the Turnstile to be deleted
      */
-    public static void delete(Player player, String name) {
+    private static void delete(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -721,7 +719,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -731,7 +729,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -746,11 +744,11 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        SaveSystem.turnstiles.remove(turnstile);
+        TurnstileMain.turnstiles.remove(turnstile);
         File trash = new File("plugins/Turnstile/"+turnstile.name+".dat");
         trash.delete();
         player.sendMessage("Turnstile "+turnstile.name+" was deleted!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -761,10 +759,10 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being modified
      * @param range The given time range
      */
-    public static void free(Player player, String name, String range) {
+    private static void free(Player player, String name, String range) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.free")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -772,7 +770,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -782,7 +780,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -802,7 +800,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.freeStart = Long.parseLong(time[0]);
         turnstile.freeEnd = Long.parseLong(time[1]);
         player.sendMessage("Turnstile "+turnstile.name+" is free to use from "+time[0]+" to "+time[1]+"!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -813,10 +811,10 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being modified
      * @param range The given time range
      */
-    public static void locked(Player player, String name, String range) {
+    private static void locked(Player player, String name, String range) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "set.locked")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -824,7 +822,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -834,7 +832,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -854,7 +852,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.lockedStart = Long.parseLong(time[0]);
         turnstile.lockedEnd = Long.parseLong(time[1]);
         player.sendMessage("Turnstile "+turnstile.name+" is locked from "+time[0]+" to "+time[1]+"!");
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -862,10 +860,10 @@ public class CommandListener implements CommandExecutor {
      * 
      * @param player The Player collecting the items
      */
-    public static void collect(Player player) {
+    private static void collect(Player player) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "collect")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -877,7 +875,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = SaveSystem.findTurnstile(block);
+        Turnstile turnstile = TurnstileMain.findTurnstile(block);
         
         //Cancel if the Chest is not linked to a Turnstile
         if (turnstile == null) {
@@ -892,7 +890,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         turnstile.collect(player);
-        SaveSystem.save();
+        TurnstileMain.save();
     }
     
     /**
@@ -900,16 +898,16 @@ public class CommandListener implements CommandExecutor {
      * 
      * @param player The Player requesting the list
      */
-    public static void list(Player player) {
+    private static void list(Player player) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "list")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
         String list = "Current Turnstiles:  ";
         
-        for (Turnstile turnstile: SaveSystem.turnstiles)
+        for (Turnstile turnstile: TurnstileMain.turnstiles)
             list = list.concat(turnstile.name+", ");
         
         player.sendMessage(list.substring(0, list.length()-2));
@@ -922,10 +920,10 @@ public class CommandListener implements CommandExecutor {
      * @param player The Player requesting the info
      * @param name The name of the Turnstile
      */
-    public static void info(Player player, String name) {
+    private static void info(Player player, String name) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "collect")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
@@ -933,7 +931,7 @@ public class CommandListener implements CommandExecutor {
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
-            turnstile = SaveSystem.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
             
             //Cancel if the Turnstile does not exist
             if (turnstile == null ) {
@@ -943,7 +941,7 @@ public class CommandListener implements CommandExecutor {
         }
         else {
             //Find the Turnstile that will be modified using the given name
-            turnstile = SaveSystem.findTurnstile(name);
+            turnstile = TurnstileMain.findTurnstile(name);
             
             //Cancel if the Warp does not exist
             if (turnstile == null ) {
@@ -973,7 +971,13 @@ public class CommandListener implements CommandExecutor {
         
         player.sendMessage("Locked: "+turnstile.lockedStart+"-"+turnstile.lockedEnd);
         player.sendMessage("NoFraud: "+turnstile.noFraud);
-        player.sendMessage("Access: "+turnstile.access.toString());
+        
+        if (turnstile.access == null)
+            player.sendMessage("Access: Public");
+        else if (turnstile.access.isEmpty())
+            player.sendMessage("Access: Private");
+        else
+            player.sendMessage("Access: "+turnstile.access.toString());
         
         String buttons = "Buttons:  ";
         for (TurnstileButton button: turnstile.buttons)
@@ -990,14 +994,14 @@ public class CommandListener implements CommandExecutor {
      * @param name The name of the Turnstile being renamed
      * @param newName The new name
      */
-    public static void rename(Player player, String name, String newName) {
+    private static void rename(Player player, String name, String newName) {
         //Cancel if the Player does not have permission to use the command
         if (!TurnstileMain.hasPermission(player, "make")) {
-            player.sendMessage(permissionMsg);
+            player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
         
-        Turnstile turnstile = SaveSystem.findTurnstile(newName);
+        Turnstile turnstile = TurnstileMain.findTurnstile(newName);
         
         //Cancel if the Turnstile already exists
         if (turnstile == null) {
@@ -1005,7 +1009,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        turnstile = SaveSystem.findTurnstile(name);
+        turnstile = TurnstileMain.findTurnstile(name);
         
         //Cancel if the Turnstile does not exist
         if (turnstile == null) {
@@ -1028,7 +1032,7 @@ public class CommandListener implements CommandExecutor {
      *
      * @param player The Player needing help
      */
-    public static void sendHelp(Player player) {
+    private static void sendHelp(Player player) {
         player.sendMessage("§e     Turnstile Help Page:");
         player.sendMessage("§2/ts make [Name]§b Make target Block into a Turnstile");
         player.sendMessage("§2/ts link [Name]§b Link target Block with Turnstile");

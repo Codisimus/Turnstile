@@ -23,8 +23,6 @@ public class Econ {
         if (!economy.has(player, amount))
             return false;
         
-        economy.withdrawPlayer(player, amount);
-        
         //Money does not go to anyone if the source is the server
         if (owner == null || owner.equalsIgnoreCase("server"))
             return true;

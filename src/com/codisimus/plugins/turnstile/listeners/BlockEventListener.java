@@ -1,7 +1,7 @@
 package com.codisimus.plugins.turnstile.listeners;
 
-import com.codisimus.plugins.turnstile.SaveSystem;
 import com.codisimus.plugins.turnstile.Turnstile;
+import com.codisimus.plugins.turnstile.TurnstileMain;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
@@ -40,7 +40,7 @@ public class BlockEventListener extends BlockListener {
             block = block.getRelative(BlockFace.DOWN);
         
         //Iterate through all Turnstiles and cancel the event if the Block is the Turnstile gate
-        for (Turnstile turnstile: SaveSystem.turnstiles)
+        for (Turnstile turnstile: TurnstileMain.turnstiles)
             if (turnstile.isBlock(block))
                 event.setNewCurrent(event.getOldCurrent());
     }
@@ -63,7 +63,7 @@ public class BlockEventListener extends BlockListener {
                 block = ((Door)block.getState().getData()).isTopHalf() ?
                         block.getRelative(BlockFace.DOWN) : block;
                 
-                for (Turnstile turnstile: SaveSystem.turnstiles)
+                for (Turnstile turnstile: TurnstileMain.turnstiles)
                     if (turnstile.isBlock(block)) {
                         //Cancel the Event if the Player is not the Owner
                         if (player == null || !turnstile.isOwner(player))
@@ -79,7 +79,7 @@ public class BlockEventListener extends BlockListener {
             case WOOD_PLATE: //Fall through
             case STONE_BUTTON: //Do not allow Turnstile Blocks to be broken
                 //Return if the Block is not linked to a Turnstile
-                Turnstile turnstile = SaveSystem.findTurnstile(block);
+                Turnstile turnstile = TurnstileMain.findTurnstile(block);
                 if (turnstile == null)
                     return;
 

@@ -1,6 +1,6 @@
 package com.codisimus.plugins.turnstile.listeners;
 
-import com.codisimus.plugins.turnstile.SaveSystem;
+import com.codisimus.plugins.turnstile.TurnstileMain;
 import org.bukkit.event.world.WorldListener;
 import org.bukkit.event.world.WorldLoadEvent;
 
@@ -18,7 +18,6 @@ public class WorldLoadListener extends WorldListener{
      */
     @Override
     public void onWorldLoad (WorldLoadEvent event) {
-        SaveSystem.load(event.getWorld());
+        TurnstileMain.loadData(event.getWorld());
     }
 }
-

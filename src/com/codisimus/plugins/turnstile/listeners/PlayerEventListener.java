@@ -1,7 +1,6 @@
 package com.codisimus.plugins.turnstile.listeners;
 
 import com.codisimus.plugins.turnstile.Econ;
-import com.codisimus.plugins.turnstile.SaveSystem;
 import com.codisimus.plugins.turnstile.Turnstile;
 import com.codisimus.plugins.turnstile.TurnstileMain;
 import java.util.LinkedList;
@@ -21,10 +20,10 @@ import org.bukkit.material.Door;
  * @author Codisimus
  */
 public class PlayerEventListener extends PlayerListener{
-    public static String permission;
-    public static String locked;
-    public static String free;
-    public static String oneWay;
+    public static String permissionMsg;
+    public static String lockedMsg;
+    public static String freeMsg;
+    public static String oneWayMsg;
     public static LinkedList<Turnstile> openTurnstiles = new LinkedList<Turnstile>();
 
     /**
@@ -45,7 +44,7 @@ public class PlayerEventListener extends PlayerListener{
                 block = ((Door)block.getState().getData()).isTopHalf() ?
                         block.getRelative(BlockFace.DOWN) : block;
                 
-                for (Turnstile turnstile: SaveSystem.turnstiles)
+                for (Turnstile turnstile: TurnstileMain.turnstiles)
                     if (turnstile.isBlock(block)) {
                         event.setCancelled(true);
                         return;
@@ -58,7 +57,7 @@ public class PlayerEventListener extends PlayerListener{
             case WOOD_PLATE: //Fall through
             case STONE_BUTTON: //Try to open a Turnstile if a linked switch was activated
                 //Return if the switch is not linked to a Turnstile
-                Turnstile turnstile = SaveSystem.findTurnstile(block);
+                Turnstile turnstile = TurnstileMain.findTurnstile(block);
                 if (turnstile == null)
                     return;
 
@@ -69,7 +68,7 @@ public class PlayerEventListener extends PlayerListener{
                 //Return if the Player does not have permission to open Turnstiles
                 Player player = event.getPlayer();
                 if (!TurnstileMain.hasPermission(player, "open")) {
-                    player.sendMessage(permission);
+                    player.sendMessage(permissionMsg);
                     return;
                 }
 
@@ -79,13 +78,13 @@ public class PlayerEventListener extends PlayerListener{
 
                 //Return if the Turnstile is locked
                 if (turnstile.isLocked(player.getWorld().getTime())) {
-                    player.sendMessage(locked);
+                    player.sendMessage(lockedMsg);
                     return;
                 }
 
                 //Open Turnstile and Return without charging if the Turnstile is free
                 if (turnstile.isFree(player.getWorld().getTime())) {
-                    player.sendMessage(free);
+                    player.sendMessage(freeMsg);
                     turnstile.open(block);
                     return;
                 }
@@ -100,9 +99,9 @@ public class PlayerEventListener extends PlayerListener{
                     turnstile.open(block);
 
                     if (turnstile.price == 0)
-                        player.sendMessage(free);
+                        player.sendMessage(freeMsg);
                     else
-                        player.sendMessage(TurnstileMain.displayCost.replaceAll("<price>",
+                        player.sendMessage(TurnstileMain.displayCostMsg.replaceAll("<price>",
                                 ""+Econ.economy.format(turnstile.price)));
                 }
                 else if (turnstile.checkBalance(player))
@@ -137,7 +136,7 @@ public class PlayerEventListener extends PlayerListener{
                 //Send the Player back to the previous Block if they entered the Turnstile backwards
                 if (turnstile.oneWay && !turnstile.checkOneWay(from.getBlock())) {
                     event.setTo(from);
-                    player.sendMessage(oneWay);
+                    player.sendMessage(oneWayMsg);
                     return;
                 }
 

@@ -48,8 +48,8 @@ public class Turnstile {
     public LinkedList<TurnstileButton> buttons = new LinkedList<TurnstileButton>(); //List of Blocks that activate the Warp
 
     public boolean open = false;
-    public int instance = 0;
-    public BlockFace openedFrom;
+    private int instance = 0;
+    private BlockFace openedFrom;
 
     /**
      * Creates a Turnstile from the save file.
@@ -126,14 +126,14 @@ public class Turnstile {
                     inventory.clear(stack);
                 
                 //Increment earned and open the Turnstile
-                player.sendMessage(TurnstileMain.correct);
+                player.sendMessage(TurnstileMain.correctMsg);
                 open(chest.getBlock());
                 itemsEarned++;
                 return;
             }
         }
             
-        player.sendMessage(TurnstileMain.wrong);
+        player.sendMessage(TurnstileMain.wrongMsg);
     }
 
     /**
@@ -148,11 +148,11 @@ public class Turnstile {
             return true;
         
         String playerName = player.getName();
-                
+        
         //Clear the Player's account if the price is set to -411 (All)
         if (price == -411) {
             Econ.economy.withdrawPlayer(playerName, Econ.economy.getBalance(playerName));
-            player.sendMessage(TurnstileMain.balanceCleared);
+            player.sendMessage(TurnstileMain.balanceClearedMsg);
             return true;
         }
         
@@ -162,12 +162,12 @@ public class Turnstile {
         
         //Return false if the Player could not afford the transaction
         if (!Econ.charge(playerName, owner, price)) {
-            player.sendMessage(TurnstileMain.notEnoughMoney);
+            player.sendMessage(TurnstileMain.notEnoughMoneyMsg);
             return false;
         }
         
         //Return true after incrementing earned by the price
-        player.sendMessage(TurnstileMain.open.replaceAll("<price>", Econ.format(price)));
+        player.sendMessage(TurnstileMain.openMsg.replaceAll("<price>", Econ.format(price)));
         moneyEarned = moneyEarned + price;
         return true;
     }
@@ -196,7 +196,7 @@ public class Turnstile {
                     return true;
         
         //Return false because the Player does not have access rights
-        player.sendMessage(TurnstileMain.privateTurnstile);
+        player.sendMessage(TurnstileMain.privateTurnstileMsg);
         return false;
     }
 
@@ -404,7 +404,7 @@ public class Turnstile {
      * 
      * @param block The given switch
      */
-    public void setOpenedFrom(Block block) {
+    private void setOpenedFrom(Block block) {
         //Cancel if Turnstiles are not one way
         if (!oneWay)
             return;
