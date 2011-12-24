@@ -6,7 +6,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
-import org.bukkit.block.Chest;
+import org.bukkit.block.Sign;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -104,8 +104,7 @@ public class Turnstile {
      * @param chest The Chest being activated
      * @param player The Player who activated the Chest
      */
-    public void checkContents(Chest chest, Player player) {
-        Inventory inventory = chest.getInventory();
+    public void checkContents(Inventory inventory, Player player) {
         LinkedList<Integer> flagForDelete = new LinkedList<Integer>();
         int total = 0;
         
@@ -127,7 +126,7 @@ public class Turnstile {
                 
                 //Increment earned and open the Turnstile
                 player.sendMessage(TurnstileMain.correctMsg);
-                open(chest.getBlock());
+                open(null);
                 itemsEarned++;
                 return;
             }
@@ -409,10 +408,14 @@ public class Turnstile {
         if (!oneWay)
             return;
         
+        //OneWay does not effect paying with items
+        if (block == null) {
+            openedFrom = BlockFace.SELF;
+            return;
+        }
+        
         //Determine the type of the Block to find out the direction opened from
         switch (block.getType()) {
-            case CHEST: openedFrom = BlockFace.SELF; return; //OneWay does not effect paying with items
-            
             case STONE_BUTTON: openedFrom = ((Button)block.getState().getData()).getFacing(); return;
 
             case WOOD_PLATE: //Fall through

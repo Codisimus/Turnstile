@@ -1,5 +1,7 @@
 package com.codisimus.plugins.turnstile.listeners;
 
+import com.codisimus.plugins.chestlock.ChestLock;
+import com.codisimus.plugins.chestlock.Safe;
 import com.codisimus.plugins.turnstile.Econ;
 import com.codisimus.plugins.turnstile.Turnstile;
 import com.codisimus.plugins.turnstile.TurnstileButton;
@@ -10,6 +12,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import net.citizensnpcs.api.CitizensManager;
+import net.citizensnpcs.resources.npclib.HumanNPC;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -96,10 +100,22 @@ public class CommandListener implements CommandExecutor {
                 return true;
                 
             case LINK:
-                if (args.length == 2)
-                    link(player, args[1]);
-                else
-                    sendHelp(player);
+                switch (args.length) {
+                    case 2: link(player, args[1]); return true;
+                        
+                    case 3:
+                        try {
+                            linkNPC(player, args[1], Integer.parseInt(args[2]));
+                            return true;
+                        }
+                        catch (Exception notInt) {
+                            break;
+                        }
+                        
+                    default: break;
+                }
+                
+                sendHelp(player);
                 return true;
                 
             case PRICE:
@@ -276,7 +292,7 @@ public class CommandListener implements CommandExecutor {
         Turnstile turnstile = new Turnstile(name, player.getName(), block);
         player.sendMessage("Turnstile "+name+" made!");
         TurnstileMain.turnstiles.add(turnstile);
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -290,20 +306,6 @@ public class CommandListener implements CommandExecutor {
         if (!TurnstileMain.hasPermission(player, "make")) {
             player.sendMessage(PlayerEventListener.permissionMsg);
             return;
-        }
-        
-        Block block = player.getTargetBlock(LINK_TRANSPARENT, 10);
-        
-        //Cancel if a correct block type is not targeted
-        switch (block.getType()) {
-            case CHEST: //Fall through
-            case STONE_PLATE: //Fall through
-            case WOOD_PLATE: //Fall through
-            case STONE_BUTTON: break;
-            
-            default:
-                player.sendMessage("You must link the Turnstile to a Button, Chest, or Pressure plate.");
-                return;
         }
         
         Turnstile turnstile = TurnstileMain.findTurnstile(name);
@@ -320,9 +322,77 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        turnstile.buttons.add(new TurnstileButton(block));
+        Block block = player.getTargetBlock(LINK_TRANSPARENT, 10);
+        
+        //Cancel if a correct block type is not targeted
+        switch (block.getType()) {
+            case CHEST:
+                //Make the Chest unlockable if ChestLock is enabled
+                if (TurnstileMain.pm.isPluginEnabled("ChestLock")) {
+                    Safe safe = ChestLock.findSafe(block);
+                    if (safe == null) {
+                        safe = new Safe(player.getName(), block);
+                        safe.lockable = false;
+                        
+                        ChestLock.addSafe(safe);
+                        ChestLock.save();
+                    }
+                }
+                //Fall through
+            case STONE_PLATE: //Fall through
+            case WOOD_PLATE: //Fall through
+            case STONE_BUTTON:
+                turnstile.buttons.add(new TurnstileButton(block));
+                break;
+            
+            default:
+                player.sendMessage("You must link the Turnstile to a Button, Chest, Pressure plate, or Sign.");
+                return;
+        }
+        
         player.sendMessage("Succesfully linked to Turnstile "+name+"!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
+    }
+    
+    /**
+     * Links the given NPC to the specified Turnstile
+     * 
+     * @param player The Player linking the Block they are targeting
+     * @param name The name of the Turnstile the Block will be linked to
+     * @param uid The unique ID of the NPC to be linked
+     */
+    private static void linkNPC(Player player, String name, int uid) {
+        //Cancel if the Player does not have permission to use the command
+        if (!TurnstileMain.hasPermission(player, "make")) {
+            player.sendMessage(PlayerEventListener.permissionMsg);
+            return;
+        }
+        
+        Turnstile turnstile = TurnstileMain.findTurnstile(name);
+        
+        //Cancel if the Turnstile does not exist
+        if (turnstile == null) {
+            player.sendMessage("Turnstile "+name+" does not exist.");
+            return;
+        }
+        
+        //Cancel if the Player does not own the Turnstile
+        if (!turnstile.isOwner(player)) {
+            player.sendMessage("Only the Turnstile Owner can do that.");
+            return;
+        }
+        
+        //Cancel if the UID does not match an NPC
+        HumanNPC npc = CitizensManager.getNPC(uid);
+        if (npc == null) {
+            player.sendMessage(uid+" is not a valid Citizens UID");
+            return;
+        }
+        
+        turnstile.buttons.add(new TurnstileButton(npc.getBaseLocation().getBlock()));
+        
+        player.sendMessage(npc.getName()+" succesfully linked to Turnstile "+name+"!");
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -384,7 +454,7 @@ public class CommandListener implements CommandExecutor {
         
         player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "
                 +amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -435,7 +505,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.price = price;
         player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "+price+"!");
 
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -495,7 +565,7 @@ public class CommandListener implements CommandExecutor {
                 player.sendMessage("Turnstile "+turnstile.name+" is not set to NoFraud mode.");
         
         turnstile.noFraud = bool;
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -544,7 +614,7 @@ public class CommandListener implements CommandExecutor {
         
         turnstile.owner = owner;
         player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+owner+"!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -598,7 +668,7 @@ public class CommandListener implements CommandExecutor {
             turnstile.access.add(access);
         
         player.sendMessage("Access to Turnstile "+turnstile.name+" has been set to "+access+"!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -647,7 +717,7 @@ public class CommandListener implements CommandExecutor {
         
         turnstile.owner = "bank:"+bank;
         player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+bank+"!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -698,7 +768,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         player.sendMessage("Sucessfully unlinked!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -748,7 +818,7 @@ public class CommandListener implements CommandExecutor {
         File trash = new File("plugins/Turnstile/"+turnstile.name+".dat");
         trash.delete();
         player.sendMessage("Turnstile "+turnstile.name+" was deleted!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -800,7 +870,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.freeStart = Long.parseLong(time[0]);
         turnstile.freeEnd = Long.parseLong(time[1]);
         player.sendMessage("Turnstile "+turnstile.name+" is free to use from "+time[0]+" to "+time[1]+"!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -852,7 +922,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.lockedStart = Long.parseLong(time[0]);
         turnstile.lockedEnd = Long.parseLong(time[1]);
         player.sendMessage("Turnstile "+turnstile.name+" is locked from "+time[0]+" to "+time[1]+"!");
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -890,7 +960,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         turnstile.collect(player);
-        TurnstileMain.save();
+        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -960,7 +1030,8 @@ public class CommandListener implements CommandExecutor {
         player.sendMessage("Name: "+turnstile.name);
         player.sendMessage("Owner: "+turnstile.owner);
         player.sendMessage("Location: "+turnstile.world+"'"+turnstile.x+"'"+turnstile.y+"'"+turnstile.z);
-        player.sendMessage("Item: "+turnstile.amount+" of "+turnstile.item+" with durability of "+turnstile.durability);
+        player.sendMessage("Item: "+turnstile.amount+" of "+Material.getMaterial(turnstile.item).name()
+                +(turnstile.durability == -1 ? "" : " with durability of "+turnstile.durability));
         
         //Only display if an Economy plugin is present
         if (Econ.economy != null) {
@@ -1036,6 +1107,8 @@ public class CommandListener implements CommandExecutor {
         player.sendMessage("§e     Turnstile Help Page:");
         player.sendMessage("§2/ts make [Name]§b Make target Block into a Turnstile");
         player.sendMessage("§2/ts link [Name]§b Link target Block with Turnstile");
+        if (TurnstileMain.citizens)
+            player.sendMessage("§2/ts link [Name] [NPC-UID]§b Link NPC with Turnstile");
         player.sendMessage("§2/ts rename (Name) [NewName]§b Rename a Turnstile");
         player.sendMessage("§2/ts unlink §b Unlink target Block with Turnstile");
         player.sendMessage("§2/ts delete (Name)§b Delete Turnstile");

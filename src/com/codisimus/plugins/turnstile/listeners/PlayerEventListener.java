@@ -3,12 +3,18 @@ package com.codisimus.plugins.turnstile.listeners;
 import com.codisimus.plugins.turnstile.Econ;
 import com.codisimus.plugins.turnstile.Turnstile;
 import com.codisimus.plugins.turnstile.TurnstileMain;
+import com.codisimus.plugins.turnstile.TurnstileSign;
 import java.util.LinkedList;
+import net.citizensnpcs.api.CitizensManager;
+import net.citizensnpcs.resources.npclib.HumanNPC;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Chest;
+import org.bukkit.block.Sign;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerListener;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -75,15 +81,17 @@ public class PlayerEventListener extends PlayerListener{
                 //Return if the Player does not have access rights to the Turnstile
                 if (!turnstile.hasAccess(player))
                     return;
+                
+                long time = player.getWorld().getTime();
 
                 //Return if the Turnstile is locked
-                if (turnstile.isLocked(player.getWorld().getTime())) {
+                if (turnstile.isLocked(time)) {
                     player.sendMessage(lockedMsg);
                     return;
                 }
 
                 //Open Turnstile and Return without charging if the Turnstile is free
-                if (turnstile.isFree(player.getWorld().getTime())) {
+                if (turnstile.isFree(time)) {
                     player.sendMessage(freeMsg);
                     turnstile.open(block);
                     return;
@@ -91,7 +99,7 @@ public class PlayerEventListener extends PlayerListener{
 
                 //Charge with items if the switch is a Chest
                 if (block.getTypeId() == 54) {
-                    turnstile.checkContents((Chest)block.getState(), player);
+                    turnstile.checkContents(((Chest)block.getState()).getInventory(), player);
                     return;
                 }
 
@@ -111,6 +119,58 @@ public class PlayerEventListener extends PlayerListener{
                 
             default: return;
         }
+    }
+    
+    /**
+     * Listens for Players attempting to open Turnstiles
+     * 
+     * @param event The PlayerInteractEvent that occurred
+     */
+    @Override
+    public void onPlayerInteractEntity (PlayerInteractEntityEvent event) {
+        //Return if the Entity clicked is not an NPC
+        Entity entity = event.getRightClicked();
+        if(!CitizensManager.isNPC(entity))
+            return;
+        
+        HumanNPC npc = CitizensManager.get(entity);
+        
+        //Return if the switch is not linked to a Turnstile
+        Turnstile turnstile = TurnstileMain.findTurnstile(npc.getBaseLocation().getBlock());
+        if (turnstile == null)
+            return;
+
+        //Return if the Turnstile is already open
+        if (turnstile.open)
+            return;
+
+        //Return if the Player does not have permission to open Turnstiles
+        Player player = event.getPlayer();
+        if (!TurnstileMain.hasPermission(player, "open")) {
+            player.sendMessage(permissionMsg);
+            return;
+        }
+
+        //Return if the Player does not have access rights to the Turnstile
+        if (!turnstile.hasAccess(player))
+            return;
+
+        long time = player.getWorld().getTime();
+        
+        //Return if the Turnstile is locked
+        if (turnstile.isLocked(time)) {
+            player.sendMessage(lockedMsg);
+            return;
+        }
+
+        //Open Turnstile and Return without charging if the Turnstile is free
+        if (turnstile.isFree(time)) {
+            player.sendMessage(freeMsg);
+            turnstile.open(null);
+            return;
+        }
+        
+        turnstile.checkContents(npc.getInventory(), player);
     }
 
     /**
@@ -148,6 +208,12 @@ public class PlayerEventListener extends PlayerListener{
                 middle.setPitch(playerLocation.getPitch());
                 middle.setYaw(playerLocation.getYaw());
                 event.setTo(middle);
+                
+                //Increment the counter on linked Signs
+                for (TurnstileSign sign: TurnstileMain.counterSigns) {
+                    if (sign.turnstile.equals(turnstile))
+                        sign.incrementCounter();
+                }
 
                 //If NoFraud mode is off, the Player already payed so Return without charging
                 if (!turnstile.noFraud)

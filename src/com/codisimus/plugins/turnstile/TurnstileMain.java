@@ -7,13 +7,16 @@ import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Properties;
 import java.util.jar.JarFile;
@@ -23,9 +26,11 @@ import net.milkbowl.vault.permission.Permission;
 import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Priority;
 import org.bukkit.event.Event.Type;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -38,7 +43,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class TurnstileMain extends JavaPlugin {
     public static int cost = 0;
     static Permission permission;
-    private static PluginManager pm;
+    public static PluginManager pm;
     static Server server;
     static int defaultTimeOut;
     static boolean useOpenFreeNode;
@@ -54,7 +59,11 @@ public class TurnstileMain extends JavaPlugin {
     static String privateTurnstileMsg;
     private static Properties p;
     public static LinkedList<Turnstile> turnstiles = new LinkedList<Turnstile>();
+    public static LinkedList<TurnstileSign> counterSigns = new LinkedList<TurnstileSign>();
+    public static LinkedList<TurnstileSign> statusSigns = new LinkedList<TurnstileSign>();
     private static boolean save = true;
+    public static boolean citizens;
+    static Plugin plugin;
 
     /**
      * Closes all open Turnstiles when this Plugin is disabled
@@ -76,6 +85,7 @@ public class TurnstileMain extends JavaPlugin {
     public void onEnable () {
         server = getServer();
         pm = server.getPluginManager();
+        plugin = this;
         
         //Load Config settings
         loadSettings();
@@ -92,8 +102,10 @@ public class TurnstileMain extends JavaPlugin {
         if (economyProvider != null)
             Econ.economy = economyProvider.getProvider();
         
-        //Load Turnstiles Data
-        loadData(null);
+        //Load Data
+        loadTurnstiles(null);
+        for (World world: server.getWorlds())
+            loadSigns(world);
         
         //Register Events
         PlayerEventListener playerListener = new PlayerEventListener();
@@ -103,6 +115,15 @@ public class TurnstileMain extends JavaPlugin {
         pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
         pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
         pm.registerEvent(Type.BLOCK_BREAK, blockListener, Priority.Normal, this);
+        
+        //Watch for interacting with NPCs if linked to Citizens
+        if (citizens)
+            pm.registerEvent(Type.PLAYER_INTERACT_ENTITY, playerListener, Priority.Normal, this);
+        
+        //Start the tickListener for each status Sign
+        for (TurnstileSign sign: statusSigns)
+            sign.tickListener();
+        
         getCommand("turnstile").setExecutor(new CommandListener());
         
         System.out.println("Turnstile "+this.getDescription().getVersion()+" is enabled!");
@@ -164,6 +185,8 @@ public class TurnstileMain extends JavaPlugin {
             p.load(fis);
             
             cost = Integer.parseInt(loadValue("CostToMakeTurnstile"));
+            
+            citizens = Boolean.parseBoolean(loadValue("UseCitizens"));
             
             defaultOneWay = Boolean.parseBoolean(loadValue("OneWayByDefault"));
             defaultNoFraud = Boolean.parseBoolean(loadValue("NoFraudByDefault"));
@@ -232,14 +255,13 @@ public class TurnstileMain extends JavaPlugin {
     }
 
     /**
-     * Reads save file to load Turnstile data
+     * Reads save files to load Turnstile data
      * Saving is turned off if an error occurs
      */
-    public static void loadData(World world) {
+    public static void loadTurnstiles(World world) {
         BufferedReader bReader = null;
         try {
             File[] files = new File("plugins/Turnstile").listFiles();
-            Properties p = new Properties();
 
             for (File file: files) {
                 String name = file.getName();
@@ -318,7 +340,7 @@ public class TurnstileMain extends JavaPlugin {
                         split[11].replace("~NETHER", "");
                     if (world == null) {
                         for (World loadedWorld: TurnstileMain.server.getWorlds())
-                            loadData(loadedWorld);
+                            loadTurnstiles(loadedWorld);
                         return;
                     }
 
@@ -416,7 +438,7 @@ public class TurnstileMain extends JavaPlugin {
                 }
             }
             
-            save();
+            saveTurnstiles();
         }
         catch (Exception loadFailed) {
             save = false;
@@ -424,12 +446,88 @@ public class TurnstileMain extends JavaPlugin {
             loadFailed.printStackTrace();
         }
     }
+    
+    /**
+     * Reads save files to load Sign data
+     * Saving is turned off if an error occurs
+     */
+    public static void loadSigns(World world) {
+        try {
+            File[] files = new File("plugins/Turnstile").listFiles();
+
+            for (File file: files) {
+                String fileName = file.getName();
+                String worldName = world.getName();
+                if (fileName.equals(worldName+"StatusSigns.dat")) {
+                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile"+fileName));
+                    
+                    String line = bReader.readLine();
+                    while (line != null) {
+                        String[] split = line.split("'");
+
+                        Turnstile turnstile = findTurnstile(split[0]);
+                        
+                        Sign sign = null;
+                        
+                        try {
+                            sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                        }
+                        catch (Exception ex) {
+                        }
+                        
+                        int lineNumber = Integer.parseInt(split[4]);
+
+                        if (turnstile != null && sign != null)
+                            statusSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
+                        
+                        line = bReader.readLine();
+                    }
+                    
+                    bReader.close();
+                }
+                else if (fileName.equals(worldName+"CounterSigns.dat")) {
+                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile"+fileName));
+                    
+                    String line = bReader.readLine();
+                    while (line != null) {
+                        String[] split = line.split("'");
+
+                        Turnstile turnstile = findTurnstile(split[0]);
+                        
+                        Sign sign = null;
+                        
+                        try {
+                            sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                        }
+                        catch (Exception ex) {
+                        }
+                        
+                        int lineNumber = Integer.parseInt(split[4]);
+
+                        if (turnstile != null && sign != null)
+                            counterSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
+                        
+                        line = bReader.readLine();
+                    }
+                    
+                    bReader.close();
+                }
+            }
+        }
+        catch (Exception loadFailed) {
+            save = false;
+            System.out.println("[PvPReward] Loading of Sign data has failed");
+            loadFailed.printStackTrace();
+        }
+    }
 
     /**
-     * Writes data to save file
-     * Old file is overwritten
+     * Writes Turnstile data to save file
+     * Old files are overwritten
      */
-    public static void save() {
+    public static void saveTurnstiles() {
         //Cancel if saving is turned off
         if (!save) {
             System.out.println("[Turnstile] Warning! Data is not being saved.");
@@ -438,12 +536,13 @@ public class TurnstileMain extends JavaPlugin {
         
         try {
             Properties p = new Properties();
+            
             for (Turnstile turnstile: turnstiles) {
                 p.setProperty("Owner", turnstile.owner);
                 p.setProperty("Location", turnstile.world+"'"+turnstile.x+"'"+turnstile.y+"'"+turnstile.z);
                 p.setProperty("Price", String.valueOf(turnstile.price));
                 p.setProperty("MoneyEarned", String.valueOf(turnstile.moneyEarned));
-                p.setProperty("ItemID",String.valueOf( turnstile.item));
+                p.setProperty("ItemID", String.valueOf(turnstile.item));
                 p.setProperty("ItemDurability", String.valueOf(turnstile.durability));
                 p.setProperty("ItemAmount", String.valueOf(turnstile.amount));
                 p.setProperty("ItemsEarned", String.valueOf(turnstile.itemsEarned));
@@ -472,6 +571,60 @@ public class TurnstileMain extends JavaPlugin {
                 }
 
                 p.store(new FileOutputStream("plugins/Turnstile/"+turnstile.name+".dat"), null);
+            }
+        }
+        catch (Exception saveFailed) {
+            System.err.println("[Turnstile] Save Failed!");
+            saveFailed.printStackTrace();
+        }
+    }
+    
+    /**
+     * Writes Sign data to save file
+     * Old files are overwritten
+     */
+    public static void saveSigns() {
+        //Cancel if saving is turned off
+        if (!save) {
+            System.out.println("[Turnstile] Warning! Data is not being saved.");
+            return;
+        }
+        
+        try {
+            for (World world: server.getWorlds()) {
+                LinkedList<TurnstileSign> tempList = new LinkedList<TurnstileSign>();
+                for (TurnstileSign sign: statusSigns)
+                    if (sign.sign.getWorld().equals(world))
+                        tempList.add(sign);
+                
+                if (!tempList.isEmpty()) {
+                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
+                            "plugins/Turnstile/"+world.getName()+"StatusSigns.dat"));
+                    
+                    for (TurnstileSign sign: tempList) {
+                        bWriter.write(sign.toString());
+                        bWriter.newLine();
+                    }
+                    
+                    bWriter.close();
+                }
+                
+                tempList.clear();
+                for (TurnstileSign sign: counterSigns)
+                    if (sign.sign.getWorld().equals(world))
+                        tempList.add(sign);
+                
+                if (!tempList.isEmpty()) {
+                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
+                            "plugins/Turnstile/"+world.getName()+"CounterSigns.dat"));
+                    
+                    for (TurnstileSign sign: tempList) {
+                        bWriter.write(sign.toString());
+                        bWriter.newLine();
+                    }
+                    
+                    bWriter.close();
+                }
             }
         }
         catch (Exception saveFailed) {

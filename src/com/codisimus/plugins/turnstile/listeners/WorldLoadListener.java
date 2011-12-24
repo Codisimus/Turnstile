@@ -12,12 +12,13 @@ import org.bukkit.event.world.WorldLoadEvent;
 public class WorldLoadListener extends WorldListener{
 
     /**
-     * Loads ChestLock data for the loaded World
+     * Loads Turnstile data for the loaded World
      * 
      * @param event The WorldLoadEvent that occurred
      */
     @Override
     public void onWorldLoad (WorldLoadEvent event) {
-        TurnstileMain.loadData(event.getWorld());
+        TurnstileMain.loadTurnstiles(event.getWorld());
+        TurnstileMain.loadSigns(event.getWorld());
     }
 }
