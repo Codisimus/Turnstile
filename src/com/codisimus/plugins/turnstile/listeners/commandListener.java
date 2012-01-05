@@ -30,9 +30,10 @@ import org.bukkit.material.Door;
  */
 public class CommandListener implements CommandExecutor {
     private static enum Action {
-        HELP, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
+        HELP, SIGN, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
         DELETE, FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME
     }
+    private static enum Help { CREATE, SETUP, SIGN }
     private static final HashSet MAKE_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
             (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
             (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
@@ -92,11 +93,13 @@ public class CommandListener implements CommandExecutor {
         
         //Execute the correct command
         switch (action) {
+            case SIGN: sendSignHelp(player); return true;
+                
             case MAKE:
                 if (args.length == 2)
                     make(player, args[1]);
                 else
-                    sendHelp(player);
+                    sendCreateHelp(player);
                 return true;
                 
             case LINK:
@@ -115,7 +118,7 @@ public class CommandListener implements CommandExecutor {
                     default: break;
                 }
                 
-                sendHelp(player);
+                sendCreateHelp(player);
                 return true;
                 
             case PRICE:
@@ -142,7 +145,7 @@ public class CommandListener implements CommandExecutor {
                     case 5: price(player, args[1], Integer.parseInt(args[2]),
                             args[3], Short.parseShort(args[4])); return true;
                         
-                    default: sendHelp(player); return true;
+                    default: sendSetupHelp(player); return true;
                 }
                 
             case NOFRAUD:
@@ -156,63 +159,63 @@ public class CommandListener implements CommandExecutor {
                 catch (Exception notInt) {
                 }
                 
-                sendHelp(player);
+                sendSetupHelp(player);
                 return true;
                 
             case OWNER:
                 switch (args.length) {
                     case 2: owner(player, null, args[1]); return true;
                     case 3: owner(player, args[1], args[2]); return true;
-                    default: sendHelp(player); return true;
+                    default: sendSetupHelp(player); return true;
                 }
                 
             case ACCESS:
                 switch (args.length) {
                     case 2: access(player, null, args[1]); return true;
                     case 3: access(player, args[1], args[2]); return true;
-                    default: sendHelp(player); return true;
+                    default: sendSetupHelp(player); return true;
                 }
                 
             case BANK:
                 switch (args.length) {
                     case 2: bank(player, null, args[1]); return true;
                     case 3: bank(player, args[1], args[2]); return true;
-                    default: sendHelp(player); return true;
+                    default: sendSetupHelp(player); return true;
                 }
                 
             case UNLINK:
                 if (args.length == 1)
                     unlink(player);
                 else
-                    sendHelp(player);
+                    sendCreateHelp(player);
                 return true;
                 
             case DELETE:
                 switch (args.length) {
                     case 1: delete(player, null); return true;
                     case 2: delete(player, args[1]); return true;
-                    default: sendHelp(player); return true;
+                    default: sendCreateHelp(player); return true;
                 }
                 
             case FREE:
                 switch (args.length) {
                     case 2: free(player, null, args[1]); return true;
                     case 3: free(player, args[1], args[2]); return true;
-                    default: sendHelp(player); return true;
+                    default: sendSetupHelp(player); return true;
                 }
                 
             case LOCKED:
                 switch (args.length) {
                     case 2: locked(player, null, args[1]); return true;
                     case 3: locked(player, args[1], args[2]); return true;
-                    default: sendHelp(player); return true;
+                    default: sendSetupHelp(player); return true;
                 }
                 
             case COLLECT:
                 if (args.length == 1)
                     collect(player);
                 else
-                    sendHelp(player);
+                    sendSetupHelp(player);
                 return true;
                 
             case LIST:
@@ -236,7 +239,28 @@ public class CommandListener implements CommandExecutor {
                     default: sendHelp(player); return true;
                 }
                 
-            default: sendHelp(player); return true;
+            default:
+                if (args.length == 2) {
+                    Help help;
+        
+                    try {
+                        help = Help.valueOf(args[1].toUpperCase());
+                    }
+                    catch (Exception notEnum) {
+                        sendHelp(player);
+                        return true;
+                    }
+        
+                    switch (help) {
+                        case CREATE: sendCreateHelp(player); break;
+                        case SETUP: sendSetupHelp(player); break;
+                        case SIGN: sendSignHelp(player); break;
+                    }
+                }
+                else
+                    sendHelp(player);
+                
+                return true;
         }
     }
     
@@ -661,11 +685,17 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        turnstile.access = new LinkedList<String>();
-        if (access.contains(","))
-            turnstile.access.addAll(Arrays.asList(access.split(",")));
-        else
-            turnstile.access.add(access);
+        if (access.equals("public"))
+            turnstile.access = null;
+        else {
+            turnstile.access = new LinkedList<String>();
+        
+            if (!access.equals("private"))
+                if (access.contains(","))
+                    turnstile.access.addAll(Arrays.asList(access.split(",")));
+                else
+                    turnstile.access.add(access);
+        }
         
         player.sendMessage("Access to Turnstile "+turnstile.name+" has been set to "+access+"!");
         TurnstileMain.saveTurnstiles();
@@ -1075,17 +1105,30 @@ public class CommandListener implements CommandExecutor {
         Turnstile turnstile = TurnstileMain.findTurnstile(newName);
         
         //Cancel if the Turnstile already exists
-        if (turnstile == null) {
-            player.sendMessage("You must target the turnstile chest you wish to collect from.");
+        if (turnstile != null) {
+            player.sendMessage("Turnstile "+newName+" already exists.");
             return;
         }
         
-        turnstile = TurnstileMain.findTurnstile(name);
-        
-        //Cancel if the Turnstile does not exist
-        if (turnstile == null) {
-            player.sendMessage("You must target the turnstile chest you wish to collect from.");
-            return;
+        if (name == null) {
+            //Find the Turnstile that will be modified using the target Block
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            
+            //Cancel if the Turnstile does not exist
+            if (turnstile == null ) {
+                player.sendMessage("Target Block is not linked to a Turnstile");
+                return;
+            }
+        }
+        else {
+            //Find the Turnstile that will be modified using the given name
+            turnstile = TurnstileMain.findTurnstile(name);
+            
+            //Cancel if the Warp does not exist
+            if (turnstile == null ) {
+                player.sendMessage("Turnstile "+name+" does not exsist.");
+                return;
+            }
         }
         
         //Cancel if the Player does not own the Turnstile
@@ -1105,13 +1148,36 @@ public class CommandListener implements CommandExecutor {
      */
     private static void sendHelp(Player player) {
         player.sendMessage("§e     Turnstile Help Page:");
+        player.sendMessage("§2/ts list§b List all Turnstiles");
+        player.sendMessage("§2/ts info (Name)§b Display info of Turnstile");
+        player.sendMessage("§2/ts help create§b Display Turnstile Create Help Page");
+        player.sendMessage("§2/ts help setup§b Display Turnstile Create Help Page");
+        player.sendMessage("§2/ts help sign§b Display Turnstile Create Help Page");
+    }
+    
+    /**
+     * Displays the Turnstile Create Help Page to the given Player
+     *
+     * @param player The Player needing help
+     */
+    private static void sendCreateHelp(Player player) {
+        player.sendMessage("§e     Turnstile Create Help Page:");
         player.sendMessage("§2/ts make [Name]§b Make target Block into a Turnstile");
+        player.sendMessage("§2/ts rename (Name) [NewName]§b Rename a Turnstile");
         player.sendMessage("§2/ts link [Name]§b Link target Block with Turnstile");
         if (TurnstileMain.citizens)
             player.sendMessage("§2/ts link [Name] [NPC-UID]§b Link NPC with Turnstile");
-        player.sendMessage("§2/ts rename (Name) [NewName]§b Rename a Turnstile");
-        player.sendMessage("§2/ts unlink §b Unlink target Block with Turnstile");
+        player.sendMessage("§2/ts unlink§b Unlink target Block with Turnstile");
         player.sendMessage("§2/ts delete (Name)§b Delete Turnstile");
+    }
+    
+    /**
+     * Displays the Turnstile Setup Help Page to the given Player
+     *
+     * @param player The Player needing help
+     */
+    private static void sendSetupHelp(Player player) {
+        player.sendMessage("§e     Turnstile Setup Help Page:");
         player.sendMessage("§2/ts price (Name) [Price]§b Set cost of Turnstile");
         player.sendMessage("§2/ts price (Name) [Amount] [Item] (Durability)§b Set cost to item");
         player.sendMessage("§2/ts nofraud (Name) ['true' or 'false']§b Set noFraud mode");
@@ -1124,7 +1190,29 @@ public class CommandListener implements CommandExecutor {
         player.sendMessage("§2/ts collect§b Retrieve items from the target Turnstile chest");
         player.sendMessage("§2/ts owner (Name) [Player]§b Send money for Turnstile to Player");
         player.sendMessage("§2/ts bank (Name) [Bank]§b Send money for Turnstile to Bank");
-        player.sendMessage("§2/ts list§b List all Turnstiles");
-        player.sendMessage("§2/ts info (Name)§b Display info of Turnstile");
+    }
+    
+    /**
+     * Displays the Turnstile Sign Help Page to the given Player
+     *
+     * @param player The Player needing help
+     */
+    private static void sendSignHelp(Player player) {
+        player.sendMessage("§e     Turnstile Sign Help Page:");
+        player.sendMessage("§2Turnstile Signs can automatically update information");
+        player.sendMessage("§2Each Sign can display two pieces of information such as:");
+        player.sendMessage("§2Name:§b The name of the Turnstile");
+        player.sendMessage("§2Price:§b The amount of money to use the Turnstile");
+        player.sendMessage("§2Cost:§b The item cost to use the Turnstile");
+        player.sendMessage("§2Counter:§b The amount of Players who used the Turnstile");
+        player.sendMessage("§2Money:§b The amount of money the Turnstile has earned");
+        player.sendMessage("§2Items:§b The amount of items the Turnstile has earned");
+        player.sendMessage("§2Access:§b Whether the Turnstile is public or private");
+        player.sendMessage("§2Status:§b Whether the Turnstile is open, free, or locked");
+        player.sendMessage("§2Turnstile Signs are created using the following format:");
+        player.sendMessage("§b       ts link");
+        player.sendMessage("§b  [Turnstile Name]");
+        player.sendMessage("§b[Information type 1]");
+        player.sendMessage("§b[Information type 2]");
     }
 }

@@ -1,5 +1,6 @@
 package com.codisimus.plugins.turnstile.listeners;
 
+import com.codisimus.plugins.turnstile.Econ;
 import com.codisimus.plugins.turnstile.Turnstile;
 import com.codisimus.plugins.turnstile.TurnstileMain;
 import com.codisimus.plugins.turnstile.TurnstileSign;
@@ -17,7 +18,7 @@ import org.bukkit.material.Door;
 
 
 /**
- * Listens for griefing events
+ * Listens for griefing events and creating Turnstile Signs
  *
  * @author Codisimus
  */
@@ -136,7 +137,7 @@ public class BlockEventListener extends BlockListener {
 
         //Cancel if the Player does not have permission to create Inns
         Player player = event.getPlayer();
-        if (!TurnstileMain.hasPermission(player, "make")) {
+        if (!TurnstileMain.hasPermission(player, "sign")) {
             player.sendMessage(PlayerEventListener.permissionMsg);
             return;
         }
@@ -171,7 +172,7 @@ public class BlockEventListener extends BlockListener {
                 
             case PRICE:
                 event.setLine(0, "Price:");
-                event.setLine(1, String.valueOf(turnstile.price));
+                event.setLine(1, Econ.format(turnstile.price));
                 break;
                 
             case COST:
@@ -183,17 +184,24 @@ public class BlockEventListener extends BlockListener {
                 event.setLine(0, "Player Count:");
                 event.setLine(1, "0");
                 
-                TurnstileMain.counterSigns.add(new TurnstileSign(sign, turnstile, 3));
+                TurnstileMain.counterSigns.add(new TurnstileSign(sign, turnstile, 1));
+                TurnstileMain.saveSigns();
                 break;
                 
             case MONEY:
                 event.setLine(0, "Money Earned:");
-                event.setLine(1, String.valueOf(turnstile.moneyEarned));
+                event.setLine(1, Econ.format(turnstile.moneyEarned));
+                
+                TurnstileMain.moneySigns.add(new TurnstileSign(sign, turnstile, 1));
+                TurnstileMain.saveSigns();
                 break;
                 
             case ITEMS:
                 event.setLine(0, "Items Earned:");
                 event.setLine(1, String.valueOf(turnstile.itemsEarned));
+                
+                TurnstileMain.itemSigns.add(new TurnstileSign(sign, turnstile, 1));
+                TurnstileMain.saveSigns();
                 break;
                 
             case ACCESS:
@@ -231,7 +239,7 @@ public class BlockEventListener extends BlockListener {
         }
         catch (Exception notEnum) {
             player.sendMessage(line+" is not a valid type. Valid types: NAME,"
-                    + "PRICE, COST, COUNTER, MONEY, ITEMS, ACCESS, FREE, LOCKED");
+                    + "PRICE, COST, COUNTER, MONEY, ITEMS, ACCESS, STATUS");
             return;
         }
 
@@ -243,7 +251,7 @@ public class BlockEventListener extends BlockListener {
                 
             case PRICE:
                 event.setLine(2, "Price:");
-                event.setLine(3, String.valueOf(turnstile.price));
+                event.setLine(3, Econ.format(turnstile.price));
                 break;
                 
             case COST:
@@ -261,12 +269,18 @@ public class BlockEventListener extends BlockListener {
                 
             case MONEY:
                 event.setLine(2, "Money Earned:");
-                event.setLine(3, String.valueOf(turnstile.moneyEarned));
+                event.setLine(3, Econ.format(turnstile.moneyEarned));
+                
+                TurnstileMain.moneySigns.add(new TurnstileSign(sign, turnstile, 3));
+                TurnstileMain.saveSigns();
                 break;
                 
             case ITEMS:
                 event.setLine(2, "Items Earned:");
                 event.setLine(3, String.valueOf(turnstile.itemsEarned));
+                
+                TurnstileMain.itemSigns.add(new TurnstileSign(sign, turnstile, 3));
+                TurnstileMain.saveSigns();
                 break;
                 
             case ACCESS:

@@ -1,6 +1,6 @@
 name: Turnstile
 main: com.codisimus.plugins.turnstile.TurnstileMain
-version: 2.2.0 dev
+version: 2.3.1
 author: Codisimus
 website: www.codisimus.com
 description: Charge players money/items to enter an area
@@ -15,6 +15,9 @@ permissions:
   turnstile.open:
     default: true
     description: Needed to open a Turnstile
+  turnstile.sign:
+    default: op
+    description: Needed to make a Turnstile Sign
   turnstile.make:
     default: op
     description: Needed to make a Turnstile (/ts make)

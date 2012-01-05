@@ -16,7 +16,6 @@ import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Properties;
 import java.util.jar.JarFile;
@@ -60,6 +59,8 @@ public class TurnstileMain extends JavaPlugin {
     private static Properties p;
     public static LinkedList<Turnstile> turnstiles = new LinkedList<Turnstile>();
     public static LinkedList<TurnstileSign> counterSigns = new LinkedList<TurnstileSign>();
+    public static LinkedList<TurnstileSign> moneySigns = new LinkedList<TurnstileSign>();
+    public static LinkedList<TurnstileSign> itemSigns = new LinkedList<TurnstileSign>();
     public static LinkedList<TurnstileSign> statusSigns = new LinkedList<TurnstileSign>();
     private static boolean save = true;
     public static boolean citizens;
@@ -115,6 +116,7 @@ public class TurnstileMain extends JavaPlugin {
         pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
         pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
         pm.registerEvent(Type.BLOCK_BREAK, blockListener, Priority.Normal, this);
+        pm.registerEvent(Type.SIGN_CHANGE, blockListener, Priority.Normal, this);
         
         //Watch for interacting with NPCs if linked to Citizens
         if (citizens)
@@ -183,6 +185,8 @@ public class TurnstileMain extends JavaPlugin {
             
             FileInputStream fis = new FileInputStream("plugins/Turnstile/config.properties");
             p.load(fis);
+            
+            Turnstile.debug = Boolean.parseBoolean(loadValue("Debug"));
             
             cost = Integer.parseInt(loadValue("CostToMakeTurnstile"));
             
@@ -265,7 +269,7 @@ public class TurnstileMain extends JavaPlugin {
 
             for (File file: files) {
                 String name = file.getName();
-                if (name.endsWith(".dat")) {
+                if (name.endsWith(".dat") && !name.endsWith("Signs.dat")) {
                     p.load(new FileInputStream(file));
 
                     name = name.substring(0, name.length() - 4);
@@ -415,8 +419,8 @@ public class TurnstileMain extends JavaPlugin {
                         turnstile.freeStart = Long.parseLong(split[8]);
                         turnstile.freeEnd = Long.parseLong(split[9]);
 
-                        if (!split[11].equals("public"))
-                            if (split[11].equals("private"))
+                        if (!split[11].equalsIgnoreCase("public"))
+                            if (split[11].equalsIgnoreCase("private"))
                                 turnstile.access = new LinkedList<String>();
                             else
                                 turnstile.access = (LinkedList<String>)Arrays.asList(split[11].split(", "));
@@ -458,8 +462,9 @@ public class TurnstileMain extends JavaPlugin {
             for (File file: files) {
                 String fileName = file.getName();
                 String worldName = world.getName();
+                
                 if (fileName.equals(worldName+"StatusSigns.dat")) {
-                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile"+fileName));
+                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile/"+fileName));
                     
                     String line = bReader.readLine();
                     while (line != null) {
@@ -487,7 +492,7 @@ public class TurnstileMain extends JavaPlugin {
                     bReader.close();
                 }
                 else if (fileName.equals(worldName+"CounterSigns.dat")) {
-                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile"+fileName));
+                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile/"+fileName));
                     
                     String line = bReader.readLine();
                     while (line != null) {
@@ -508,6 +513,62 @@ public class TurnstileMain extends JavaPlugin {
 
                         if (turnstile != null && sign != null)
                             counterSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
+                        
+                        line = bReader.readLine();
+                    }
+                    
+                    bReader.close();
+                }
+                else if (fileName.equals(worldName+"MoneySigns.dat")) {
+                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile/"+fileName));
+                    
+                    String line = bReader.readLine();
+                    while (line != null) {
+                        String[] split = line.split("'");
+
+                        Turnstile turnstile = findTurnstile(split[0]);
+                        
+                        Sign sign = null;
+                        
+                        try {
+                            sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                        }
+                        catch (Exception ex) {
+                        }
+                        
+                        int lineNumber = Integer.parseInt(split[4]);
+
+                        if (turnstile != null && sign != null)
+                            moneySigns.add(new TurnstileSign(sign, turnstile, lineNumber));
+                        
+                        line = bReader.readLine();
+                    }
+                    
+                    bReader.close();
+                }
+                else if (fileName.equals(worldName+"ItemSigns.dat")) {
+                    BufferedReader bReader = new BufferedReader(new FileReader("plugins/Turnstile/"+fileName));
+                    
+                    String line = bReader.readLine();
+                    while (line != null) {
+                        String[] split = line.split("'");
+
+                        Turnstile turnstile = findTurnstile(split[0]);
+                        
+                        Sign sign = null;
+                        
+                        try {
+                            sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                        }
+                        catch (Exception ex) {
+                        }
+                        
+                        int lineNumber = Integer.parseInt(split[4]);
+
+                        if (turnstile != null && sign != null)
+                            itemSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
                         
                         line = bReader.readLine();
                     }
@@ -617,6 +678,40 @@ public class TurnstileMain extends JavaPlugin {
                 if (!tempList.isEmpty()) {
                     BufferedWriter bWriter = new BufferedWriter(new FileWriter(
                             "plugins/Turnstile/"+world.getName()+"CounterSigns.dat"));
+                    
+                    for (TurnstileSign sign: tempList) {
+                        bWriter.write(sign.toString());
+                        bWriter.newLine();
+                    }
+                    
+                    bWriter.close();
+                }
+                
+                tempList.clear();
+                for (TurnstileSign sign: moneySigns)
+                    if (sign.sign.getWorld().equals(world))
+                        tempList.add(sign);
+                
+                if (!tempList.isEmpty()) {
+                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
+                            "plugins/Turnstile/"+world.getName()+"MoneySigns.dat"));
+                    
+                    for (TurnstileSign sign: tempList) {
+                        bWriter.write(sign.toString());
+                        bWriter.newLine();
+                    }
+                    
+                    bWriter.close();
+                }
+                
+                tempList.clear();
+                for (TurnstileSign sign: itemSigns)
+                    if (sign.sign.getWorld().equals(world))
+                        tempList.add(sign);
+                
+                if (!tempList.isEmpty()) {
+                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
+                            "plugins/Turnstile/"+world.getName()+"ItemSigns.dat"));
                     
                     for (TurnstileSign sign: tempList) {
                         bWriter.write(sign.toString());

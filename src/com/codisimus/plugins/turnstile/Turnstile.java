@@ -6,7 +6,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
-import org.bukkit.block.Sign;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -50,6 +49,8 @@ public class Turnstile {
     public boolean open = false;
     private int instance = 0;
     private BlockFace openedFrom;
+    
+    static boolean debug;
 
     /**
      * Creates a Turnstile from the save file.
@@ -128,6 +129,14 @@ public class Turnstile {
                 player.sendMessage(TurnstileMain.correctMsg);
                 open(null);
                 itemsEarned++;
+                
+                //Increment the counter on linked Signs
+                for (TurnstileSign sign: TurnstileMain.itemSigns) {
+                    if (sign.turnstile.equals(this))
+                        sign.incrementCounter();
+                }
+                
+                TurnstileMain.saveTurnstiles();
                 return;
             }
         }
@@ -142,32 +151,55 @@ public class Turnstile {
      * @return true if the Player could afford to open the Turnstile
      */
     public boolean checkBalance(Player player) {
+        if (debug)
+            System.out.println("Turnstile "+name+" Debug: Charging "+player.getName());
+        
         //Return true if the Player can open Turnstiles for free
-        if (TurnstileMain.useOpenFreeNode && TurnstileMain.hasPermission(player, "openfree"))
+        if (TurnstileMain.useOpenFreeNode && TurnstileMain.hasPermission(player, "openfree")) {
+            if (debug)
+                System.out.println("Turnstile "+name+" Debug: "+player.getName()+" is not charged to open Turnstiles");
             return true;
+        }
         
         String playerName = player.getName();
         
         //Clear the Player's account if the price is set to -411 (All)
         if (price == -411) {
+            if (debug)
+                System.out.println("Turnstile "+name+" Debug: "+player.getName()+"'s account will be set to 0");
+            
             Econ.economy.withdrawPlayer(playerName, Econ.economy.getBalance(playerName));
             player.sendMessage(TurnstileMain.balanceClearedMsg);
             return true;
         }
         
         //Return true if the price is not positive
-        if (price <= 0)
+        if (price <= 0) {
+            if (debug)
+                System.out.println("Turnstile "+name+" Debug: Price is not positive, no charge");
             return true;
+        }
         
         //Return false if the Player could not afford the transaction
         if (!Econ.charge(playerName, owner, price)) {
+            if (debug)
+                System.out.println("Turnstile "+name+" Debug: "+player.getName()+" cannot afford "+Econ.format(price));
+            
             player.sendMessage(TurnstileMain.notEnoughMoneyMsg);
             return false;
         }
         
-        //Return true after incrementing earned by the price
+        //Increment earned by the price
         player.sendMessage(TurnstileMain.openMsg.replaceAll("<price>", Econ.format(price)));
         moneyEarned = moneyEarned + price;
+        
+        //Increment the amount of money earned on linked Signs
+        for (TurnstileSign sign: TurnstileMain.moneySigns) {
+            if (sign.turnstile.equals(this))
+                sign.incrementEarned();
+        }
+        
+        TurnstileMain.saveTurnstiles();
         return true;
     }
     
@@ -179,20 +211,39 @@ public class Turnstile {
      * @return true if the Player has access rights
      */
     public boolean hasAccess(Player player) {
+        if (debug)
+            System.out.println("Turnstile "+name+" Debug: Checking access rights for "+player.getName());
+        
         //Return true if the Turnstile is public
-        if (access == null)
+        if (access == null) {
+            if (debug)
+                System.out.println("Turnstile "+name+" Debug: Turnstile is public");
             return true;
+        }
 
         //Return isOwner() if the Turnstile is private
         if (access.isEmpty()) {
+            if (debug) {
+                System.out.println("Turnstile "+name+" Debug: Turnstile is private");
+                System.out.println("Turnstile "+name+" Debug: "+player.getName()+(isOwner(player) ? " is an owner" : " is not an owner"));
+            }
+            
             if (isOwner(player))
                 return true;
         }
-        else
+        else {
+            if (debug)
+                System.out.println("Turnstile "+name+" Debug: Turnstile has group access");
+            
             //Return true if the Player is in a group that has access
-            for (String group: access)
-                if (!TurnstileMain.permission.playerInGroup(player, group))
+            for (String group: access) {
+                System.out.println("Turnstile "+name+" Debug: "+player.getName()+
+                        (TurnstileMain.permission.playerInGroup(player, group) ? " is in group " : " is not in group ")+group);
+                
+                if (TurnstileMain.permission.playerInGroup(player, group))
                     return true;
+            }
+        }
         
         //Return false because the Player does not have access rights
         player.sendMessage(TurnstileMain.privateTurnstileMsg);

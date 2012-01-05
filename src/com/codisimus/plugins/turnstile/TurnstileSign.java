@@ -30,40 +30,49 @@ public class TurnstileSign {
     /**
      * Updates the Turnstile Sign when it becomes either locked, free, or open
      * 
-     * @param sign The Sign that is to be updated
-     * @param line The line of the sign to be updated
-     * @param turnstile The Turnstile to be watching
      */
     public void tickListener() {
         final World world = TurnstileMain.server.getWorld(turnstile.world);
         
-        //Delay Teleporting
-    	TurnstileMain.server.getScheduler().scheduleAsyncRepeatingTask(TurnstileMain.plugin, new Runnable() {
+        //Repeat every second
+    	TurnstileMain.server.getScheduler().scheduleSyncRepeatingTask(TurnstileMain.plugin, new Runnable() {
             @Override
     	    public void run() {
-                long time = world.getFullTime();
+                long time = world.getTime();
                 
-                if (time > turnstile.lockedStart && time < turnstile.lockedEnd)
+                if (turnstile.isLocked(time))
                     sign.setLine(line, "locked");
-                else if (time > turnstile.freeStart && time < turnstile.freeEnd)
+                else if (turnstile.isFree(time))
                     sign.setLine(line, "free");
                 else
                     sign.setLine(line, "open");
                     
                 sign.update();
     	    }
-    	}, 0L, 0);
+    	}, 0L, 20L);
     }
 
     /**
      * Increments the Player count displayed on the Sign by one
-     * 
+     * If the Sign displays the money earned, increment by the price
      */
     public void incrementCounter() {
-        int counter = Integer.parseInt(sign.getLine(line));
-        counter++;
-        
-        sign.setLine(line, String.valueOf(counter));
+        int amount = Integer.parseInt(sign.getLine(line));
+        amount++;
+            
+        sign.setLine(line, String.valueOf(amount));
+        sign.update();
+    }
+    
+    /**
+     * Increments the amount of money earned that is displayed on the Sign
+     *
+     */
+    public void incrementEarned() {
+        String earned = sign.getLine(line).split(" ")[0];
+        double newEarned = Double.parseDouble(earned) + turnstile.price;
+
+        sign.setLine(line, Econ.format(newEarned));
         sign.update();
     }
     
