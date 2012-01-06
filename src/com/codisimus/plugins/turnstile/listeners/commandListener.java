@@ -37,26 +37,27 @@ public class CommandListener implements CommandExecutor {
     private static final HashSet MAKE_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
             (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
             (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
-            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)65,
-            (byte)66, (byte)67, (byte)69, (byte)70, (byte)72, (byte)75, (byte)76,
-            (byte)77, (byte)78, (byte)90, (byte)92, (byte)101, (byte)102, (byte)104,
-            (byte)105, (byte)106, (byte)108, (byte)109, (byte)111, (byte)114,
-            (byte)115, (byte)117);
+            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)63,
+            (byte)65, (byte)66, (byte)67, (byte)68, (byte)69, (byte)70, (byte)72,
+            (byte)75, (byte)76, (byte)77, (byte)78, (byte)90, (byte)92, (byte)101,
+            (byte)102, (byte)104, (byte)105, (byte)106, (byte)108, (byte)109,
+            (byte)111, (byte)114, (byte)115, (byte)117);
     private static final HashSet LINK_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
             (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
             (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
-            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)64,
-            (byte)65, (byte)66, (byte)67, (byte)71, (byte)75, (byte)76, (byte)78,
-            (byte)85, (byte)90, (byte)92, (byte)96, (byte)101, (byte)102, (byte)104,
-            (byte)105, (byte)106, (byte)107, (byte)108, (byte)109, (byte)111,
-            (byte)113, (byte)114, (byte)115, (byte)117);
+            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)63,
+            (byte)64, (byte)65, (byte)66, (byte)67, (byte)68, (byte)71, (byte)75,
+            (byte)76, (byte)78, (byte)85, (byte)90, (byte)92, (byte)96, (byte)101,
+            (byte)102, (byte)104, (byte)105, (byte)106, (byte)107, (byte)108,
+            (byte)109, (byte)111, (byte)113, (byte)114, (byte)115, (byte)117);
     private static final HashSet TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
             (byte)8, (byte)9, (byte)10, (byte)11, (byte)26, (byte)27, (byte)28,
             (byte)30, (byte)31, (byte)32, (byte)37, (byte)38, (byte)39, (byte)40,
-            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)65,
-            (byte)66, (byte)67, (byte)75, (byte)76, (byte)78, (byte)90, (byte)92,
-            (byte)101, (byte)102, (byte)104, (byte)105, (byte)106, (byte)108,
-            (byte)109, (byte)111, (byte)114, (byte)115, (byte)117);
+            (byte)44, (byte)50, (byte)51, (byte)53, (byte)55, (byte)59, (byte)63,
+            (byte)65, (byte)66, (byte)67, (byte)68, (byte)75, (byte)76, (byte)78,
+            (byte)90, (byte)92, (byte)101, (byte)102, (byte)104, (byte)105,
+            (byte)106, (byte)108, (byte)109, (byte)111, (byte)114, (byte)115,
+            (byte)117);
     
     /**
      * Listens for Turnstile commands to execute them
@@ -436,7 +437,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -496,7 +497,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -547,7 +548,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -607,7 +608,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -656,7 +657,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -716,7 +717,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -815,7 +816,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -866,7 +867,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -918,7 +919,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
@@ -1027,7 +1028,7 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile = null;
+        Turnstile turnstile;
         
         if (name == null) {
             //Find the Turnstile that will be modified using the target Block
