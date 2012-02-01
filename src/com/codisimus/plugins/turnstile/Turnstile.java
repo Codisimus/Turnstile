@@ -2,10 +2,10 @@ package com.codisimus.plugins.turnstile;
 
 import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
 import java.util.LinkedList;
-import org.bukkit.entity.Player;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.BlockState;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -482,9 +482,7 @@ public class Turnstile {
                 else
                     openedFrom = BlockFace.SELF;
                 
-                return;
-                
-            default: return;
+            default:
         }
     }
 

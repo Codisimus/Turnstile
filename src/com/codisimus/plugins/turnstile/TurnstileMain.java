@@ -1,20 +1,10 @@
 package com.codisimus.plugins.turnstile;
 
-import com.codisimus.plugins.turnstile.listeners.WorldLoadListener;
 import com.codisimus.plugins.turnstile.listeners.BlockEventListener;
-import com.codisimus.plugins.turnstile.listeners.CommandListener;
+import com.codisimus.plugins.turnstile.listeners.CmmandListener;
 import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.InputStream;
-import java.io.OutputStream;
+import com.codisimus.plugins.turnstile.listeners.WorldLoadListener;
+import java.io.*;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Properties;
@@ -126,7 +116,7 @@ public class TurnstileMain extends JavaPlugin {
         for (TurnstileSign sign: statusSigns)
             sign.tickListener();
         
-        getCommand("turnstile").setExecutor(new CommandListener());
+        getCommand("turnstile").setExecutor(new CmmandListener());
         
         System.out.println("Turnstile "+this.getDescription().getVersion()+" is enabled!");
     }
@@ -263,7 +253,7 @@ public class TurnstileMain extends JavaPlugin {
      * Saving is turned off if an error occurs
      */
     public static void loadTurnstiles(World world) {
-        BufferedReader bReader = null;
+        BufferedReader bReader;
         try {
             File[] files = new File("plugins/Turnstile").listFiles();
 

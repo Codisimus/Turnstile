@@ -28,7 +28,7 @@ import org.bukkit.material.Door;
  * 
  * @author Codisimus
  */
-public class CommandListener implements CommandExecutor {
+public class CmmandListener implements CommandExecutor {
     private static enum Action {
         HELP, SIGN, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
         DELETE, FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME
@@ -479,6 +479,7 @@ public class CommandListener implements CommandExecutor {
         
         player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "
                 +amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
+        player.sendMessage("Pay with items by placing them into a linked Chest.");
         TurnstileMain.saveTurnstiles();
     }
     

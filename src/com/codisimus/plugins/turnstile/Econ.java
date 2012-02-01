@@ -1,5 +1,6 @@
 package com.codisimus.plugins.turnstile;
 
+import com.codisimus.plugins.turnstile.Turnstile;
 import net.milkbowl.vault.economy.Economy;
 
 /**
