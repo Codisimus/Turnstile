@@ -28,7 +28,7 @@ import org.bukkit.material.Door;
  * 
  * @author Codisimus
  */
-public class CmmandListener implements CommandExecutor {
+public class CommandListener implements CommandExecutor {
     private static enum Action {
         HELP, SIGN, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
         DELETE, FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME

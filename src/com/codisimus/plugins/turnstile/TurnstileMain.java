@@ -1,7 +1,7 @@
 package com.codisimus.plugins.turnstile;
 
 import com.codisimus.plugins.turnstile.listeners.BlockEventListener;
-import com.codisimus.plugins.turnstile.listeners.CmmandListener;
+import com.codisimus.plugins.turnstile.listeners.CommandListener;
 import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
 import com.codisimus.plugins.turnstile.listeners.WorldLoadListener;
 import java.io.*;
@@ -116,7 +116,7 @@ public class TurnstileMain extends JavaPlugin {
         for (TurnstileSign sign: statusSigns)
             sign.tickListener();
         
-        getCommand("turnstile").setExecutor(new CmmandListener());
+        getCommand("turnstile").setExecutor(new CommandListener());
         
         System.out.println("Turnstile "+this.getDescription().getVersion()+" is enabled!");
     }
