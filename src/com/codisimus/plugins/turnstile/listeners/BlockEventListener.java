@@ -47,7 +47,7 @@ public class BlockEventListener extends BlockListener {
             block = block.getRelative(BlockFace.DOWN);
         
         //Iterate through all Turnstiles and cancel the event if the Block is the Turnstile gate
-        for (Turnstile turnstile: TurnstileMain.turnstiles)
+        for (Turnstile turnstile: TurnstileMain.getTurnstiles())
             if (turnstile.isBlock(block))
                 event.setNewCurrent(event.getOldCurrent());
     }
@@ -70,7 +70,7 @@ public class BlockEventListener extends BlockListener {
                 block = ((Door)block.getState().getData()).isTopHalf() ?
                         block.getRelative(BlockFace.DOWN) : block;
                 
-                for (Turnstile turnstile: TurnstileMain.turnstiles)
+                for (Turnstile turnstile: TurnstileMain.getTurnstiles())
                     if (turnstile.isBlock(block)) {
                         //Cancel the Event if the Player is not the Owner
                         if (player == null || !turnstile.isOwner(player))

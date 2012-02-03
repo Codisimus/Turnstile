@@ -136,7 +136,7 @@ public class Turnstile {
                         sign.incrementCounter();
                 }
                 
-                TurnstileMain.saveTurnstiles();
+                save();
                 return;
             }
         }
@@ -194,12 +194,11 @@ public class Turnstile {
         moneyEarned = moneyEarned + price;
         
         //Increment the amount of money earned on linked Signs
-        for (TurnstileSign sign: TurnstileMain.moneySigns) {
+        for (TurnstileSign sign: TurnstileMain.moneySigns)
             if (sign.turnstile.equals(this))
                 sign.incrementEarned();
-        }
         
-        TurnstileMain.saveTurnstiles();
+        save();
         return true;
     }
     
@@ -390,6 +389,7 @@ public class Turnstile {
         }
         
         player.sendMessage("Inventory full");
+        save();
     }
 
     /**
@@ -525,5 +525,13 @@ public class Turnstile {
 
         //Return false because no Button was found
         return false;
+    }
+    
+    /**
+     * Writes the Turnstile data to a file
+     * 
+     */
+    public void save() {
+        TurnstileMain.saveTurnstile(this);
     }
 }

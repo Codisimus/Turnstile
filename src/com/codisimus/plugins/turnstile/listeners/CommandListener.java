@@ -316,8 +316,7 @@ public class CommandListener implements CommandExecutor {
         
         Turnstile turnstile = new Turnstile(name, player.getName(), block);
         player.sendMessage("Turnstile "+name+" made!");
-        TurnstileMain.turnstiles.add(turnstile);
-        TurnstileMain.saveTurnstiles();
+        TurnstileMain.addTurnstile(turnstile);
     }
     
     /**
@@ -376,7 +375,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         player.sendMessage("Succesfully linked to Turnstile "+name+"!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -417,7 +416,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.buttons.add(new TurnstileButton(npc.getBaseLocation().getBlock()));
         
         player.sendMessage(npc.getName()+" succesfully linked to Turnstile "+name+"!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -437,28 +436,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -480,7 +460,7 @@ public class CommandListener implements CommandExecutor {
         player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "
                 +amount+" of "+Material.getMaterial(turnstile.item).name()+"!");
         player.sendMessage("Pay with items by placing them into a linked Chest.");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -498,28 +478,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -531,7 +492,7 @@ public class CommandListener implements CommandExecutor {
         turnstile.price = price;
         player.sendMessage("Price of Turnstile "+turnstile.name+" has been set to "+price+"!");
 
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -549,28 +510,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -591,7 +533,7 @@ public class CommandListener implements CommandExecutor {
                 player.sendMessage("Turnstile "+turnstile.name+" is not set to NoFraud mode.");
         
         turnstile.noFraud = bool;
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -609,28 +551,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -640,7 +563,7 @@ public class CommandListener implements CommandExecutor {
         
         turnstile.owner = owner;
         player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+owner+"!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -658,28 +581,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -700,7 +604,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         player.sendMessage("Access to Turnstile "+turnstile.name+" has been set to "+access+"!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -718,28 +622,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -749,7 +634,7 @@ public class CommandListener implements CommandExecutor {
         
         turnstile.owner = "bank:"+bank;
         player.sendMessage("Money from Turnstile "+turnstile.name+" will go to "+bank+"!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -800,7 +685,7 @@ public class CommandListener implements CommandExecutor {
         }
         
         player.sendMessage("Sucessfully unlinked!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -817,28 +702,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -846,11 +712,8 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        TurnstileMain.turnstiles.remove(turnstile);
-        File trash = new File("plugins/Turnstile/"+turnstile.name+".dat");
-        trash.delete();
+        TurnstileMain.removeTurnstile(turnstile.name);
         player.sendMessage("Turnstile "+turnstile.name+" was deleted!");
-        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -868,28 +731,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -901,8 +745,9 @@ public class CommandListener implements CommandExecutor {
         String[] time = range.split("-");
         turnstile.freeStart = Long.parseLong(time[0]);
         turnstile.freeEnd = Long.parseLong(time[1]);
+        
         player.sendMessage("Turnstile "+turnstile.name+" is free to use from "+time[0]+" to "+time[1]+"!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -920,28 +765,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -953,8 +779,9 @@ public class CommandListener implements CommandExecutor {
         String[] time = range.split("-");
         turnstile.lockedStart = Long.parseLong(time[0]);
         turnstile.lockedEnd = Long.parseLong(time[1]);
+        
         player.sendMessage("Turnstile "+turnstile.name+" is locked from "+time[0]+" to "+time[1]+"!");
-        TurnstileMain.saveTurnstiles();
+        turnstile.save();
     }
     
     /**
@@ -992,7 +819,6 @@ public class CommandListener implements CommandExecutor {
         }
         
         turnstile.collect(player);
-        TurnstileMain.saveTurnstiles();
     }
     
     /**
@@ -1009,7 +835,7 @@ public class CommandListener implements CommandExecutor {
         
         String list = "Current Turnstiles:  ";
         
-        for (Turnstile turnstile: TurnstileMain.turnstiles)
+        for (Turnstile turnstile: TurnstileMain.getTurnstiles())
             list = list.concat(turnstile.name+", ");
         
         player.sendMessage(list.substring(0, list.length()-2));
@@ -1029,28 +855,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        Turnstile turnstile;
-        
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -1112,26 +919,9 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
-        if (name == null) {
-            //Find the Turnstile that will be modified using the target Block
-            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
-            
-            //Cancel if the Turnstile does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Target Block is not linked to a Turnstile");
-                return;
-            }
-        }
-        else {
-            //Find the Turnstile that will be modified using the given name
-            turnstile = TurnstileMain.findTurnstile(name);
-            
-            //Cancel if the Warp does not exist
-            if (turnstile == null ) {
-                player.sendMessage("Turnstile "+name+" does not exsist.");
-                return;
-            }
-        }
+        turnstile = getTurnstile(player, name);
+        if (turnstile == null)
+            return;
         
         //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
@@ -1139,7 +929,13 @@ public class CommandListener implements CommandExecutor {
             return;
         }
         
+        //Remove the Turnstile that will be renamed
+        TurnstileMain.removeTurnstile(turnstile.name);
         turnstile.name = newName;
+        
+        //Readd the Turnstile with the new name
+        TurnstileMain.addTurnstile(turnstile);
+        
         player.sendMessage("Turnstile "+name+" renamed to "+newName+".");
     }
     
@@ -1216,5 +1012,35 @@ public class CommandListener implements CommandExecutor {
         player.sendMessage("§b  [Turnstile Name]");
         player.sendMessage("§b[Information type 1]");
         player.sendMessage("§b[Information type 2]");
+    }
+    
+    /**
+     * Returns the wanted Turnstile if it exists based on the given name and Player
+     * 
+     * @param player The given Player who may be targeting a block linked to a Turnstile
+     * @param name The given name of the Turnstile (null if the target block is wanted
+     * @return The Turnstile if it exists
+     */
+    private static Turnstile getTurnstile(Player player, String name) {
+        Turnstile turnstile;
+        
+        if (name == null) {
+            //Find the Turnstile using the target Block
+            turnstile = TurnstileMain.findTurnstile(player.getTargetBlock(TRANSPARENT, 10));
+            
+            if (turnstile == null )
+                //Turnstile does not exist
+                player.sendMessage("Target Block is not linked to a Turnstile");
+        }
+        else {
+            //Find the Turnstile using the given name
+            turnstile = TurnstileMain.findTurnstile(name);
+            
+            if (turnstile == null )
+                //Turnstile does not exist
+                player.sendMessage("Turnstile "+name+" does not exsist.");
+        }
+        
+        return turnstile;
     }
 }

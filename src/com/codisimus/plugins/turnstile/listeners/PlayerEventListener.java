@@ -49,7 +49,7 @@ public class PlayerEventListener extends PlayerListener{
                 block = ((Door)block.getState().getData()).isTopHalf() ?
                         block.getRelative(BlockFace.DOWN) : block;
                 
-                for (Turnstile turnstile: TurnstileMain.turnstiles)
+                for (Turnstile turnstile: TurnstileMain.getTurnstiles())
                     if (turnstile.isBlock(block)) {
                         event.setCancelled(true);
                         return;
@@ -233,4 +233,3 @@ public class PlayerEventListener extends PlayerListener{
         }
     }
 }
-
