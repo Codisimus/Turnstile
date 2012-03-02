@@ -1,12 +1,7 @@
 package com.codisimus.plugins.turnstile;
 
-import com.codisimus.plugins.turnstile.listeners.BlockEventListener;
-import com.codisimus.plugins.turnstile.listeners.CommandListener;
-import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
 import java.io.*;
 import java.util.*;
-import java.util.jar.JarFile;
-import java.util.zip.ZipEntry;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.permission.Permission;
 import org.bukkit.Server;
@@ -14,8 +9,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event.Priority;
-import org.bukkit.event.Event.Type;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -36,21 +29,15 @@ public class TurnstileMain extends JavaPlugin {
     public static boolean useMakeFreeNode;
     static boolean defaultOneWay;
     static boolean defaultNoFraud;
-    static String correctMsg;
-    static String wrongMsg;
-    static String notEnoughMoneyMsg;
-    public static String displayCostMsg;
-    static String openMsg;
-    static String balanceClearedMsg;
-    static String privateTurnstileMsg;
-    private static Properties p;
-    private static HashMap <String, Turnstile> turnstiles = new HashMap <String, Turnstile>();
+    private Properties p;
+    private static HashMap<String, Turnstile> turnstiles = new HashMap<String, Turnstile>();
     public static LinkedList<TurnstileSign> counterSigns = new LinkedList<TurnstileSign>();
     public static LinkedList<TurnstileSign> moneySigns = new LinkedList<TurnstileSign>();
     public static LinkedList<TurnstileSign> itemSigns = new LinkedList<TurnstileSign>();
-    public static LinkedList<TurnstileSign> statusSigns = new LinkedList<TurnstileSign>();
+    public static HashMap<TurnstileSign, Integer> statusSigns = new HashMap<TurnstileSign, Integer>();
     public static boolean citizens;
     static Plugin plugin;
+    private static String dataFolder;
 
     /**
      * Closes all open Turnstiles when this Plugin is disabled
@@ -60,7 +47,7 @@ public class TurnstileMain extends JavaPlugin {
     public void onDisable () {
         //Close all open Turnstiles
         System.out.println("[Turnstile] Closing all open Turnstiles...");
-        for (Turnstile turnstile: PlayerEventListener.openTurnstiles)
+        for (Turnstile turnstile: TurnstileListener.openTurnstiles)
             turnstile.close();
     }
 
@@ -73,6 +60,16 @@ public class TurnstileMain extends JavaPlugin {
         server = getServer();
         pm = server.getPluginManager();
         plugin = this;
+        
+        File dir = this.getDataFolder();
+        if (!dir.isDirectory())
+            dir.mkdir();
+        
+        dataFolder = dir.getPath();
+        
+        dir = new File(dataFolder+"/Turnstile");
+        if (!dir.isDirectory())
+            dir.mkdir();
         
         //Load Config settings
         loadSettings();
@@ -94,66 +91,16 @@ public class TurnstileMain extends JavaPlugin {
         loadSigns();
         
         //Register Events
-        PlayerEventListener playerListener = new PlayerEventListener();
-        BlockEventListener blockListener = new BlockEventListener();
-        pm.registerEvent(Type.PLAYER_MOVE, playerListener, Priority.Normal, this);
-        pm.registerEvent(Type.PLAYER_INTERACT, playerListener, Priority.Normal, this);
-        pm.registerEvent(Type.REDSTONE_CHANGE, blockListener, Priority.Normal, this);
-        pm.registerEvent(Type.BLOCK_BREAK, blockListener, Priority.Normal, this);
-        pm.registerEvent(Type.SIGN_CHANGE, blockListener, Priority.Normal, this);
-        
+        pm.registerEvents(new TurnstileListener(), this);
         //Watch for interacting with NPCs if linked to Citizens
         if (citizens)
-            pm.registerEvent(Type.PLAYER_INTERACT_ENTITY, playerListener, Priority.Normal, this);
+            pm.registerEvents(new NPCListener(), this);
         
-        //Start the tickListener for each status Sign
-        for (TurnstileSign sign: statusSigns)
-            sign.tickListener();
-        
-        getCommand("turnstile").setExecutor(new CommandListener());
+        //Register the command found in the plugin.yml
+        TurnstileCommand.command = (String)this.getDescription().getCommands().keySet().toArray()[0];
+        getCommand(TurnstileCommand.command).setExecutor(new TurnstileCommand());
         
         System.out.println("Turnstile "+this.getDescription().getVersion()+" is enabled!");
-    }
-    
-    /**
-     * Moves file from Turnstile.jar to appropriate folder
-     * Destination folder is created if it doesn't exist
-     * 
-     * @param fileName The name of the file to be moved
-     */
-    private void moveFile(String fileName) {
-        try {
-            //Retrieve file from this plugin's .jar
-            JarFile jar = new JarFile("plugins/Turnstile.jar");
-            ZipEntry entry = jar.getEntry(fileName);
-            
-            //Create the destination folder if it does not exist
-            String destination = "plugins/Turnstile/";
-            File file = new File(destination.substring(0, destination.length()-1));
-            if (!file.exists())
-                file.mkdir();
-            
-            File efile = new File(destination, fileName);
-            InputStream in = new BufferedInputStream(jar.getInputStream(entry));
-            OutputStream out = new BufferedOutputStream(new FileOutputStream(efile));
-            byte[] buffer = new byte[2048];
-            
-            //Copy the file
-            while (true) {
-                int nBytes = in.read(buffer);
-                if (nBytes <= 0)
-                    break;
-                out.write(buffer, 0, nBytes);
-            }
-            
-            out.flush();
-            out.close();
-            in.close();
-        }
-        catch (Exception moveFailed) {
-            System.err.println("[Turnstile] File Move Failed!");
-            moveFailed.printStackTrace();
-        }
     }
 
     /**
@@ -161,13 +108,15 @@ public class TurnstileMain extends JavaPlugin {
      * 
      */
     public void loadSettings() {
-        p = new Properties();
         try {
             //Copy the file from the jar if it is missing
-            if (!new File("plugins/Turnstile/config.properties").exists())
-                moveFile("config.properties");
+            File file = new File(dataFolder+"/config.properties");
+            if (!file.exists())
+                this.saveResource("config.properties", true);
             
-            FileInputStream fis = new FileInputStream("plugins/Turnstile/config.properties");
+            //Load config file
+            p = new Properties();
+            FileInputStream fis = new FileInputStream(file);
             p.load(fis);
             
             Turnstile.debug = Boolean.parseBoolean(loadValue("Debug"));
@@ -183,22 +132,26 @@ public class TurnstileMain extends JavaPlugin {
             useOpenFreeNode = Boolean.parseBoolean(loadValue("use'openfree'node"));
             useMakeFreeNode = Boolean.parseBoolean(loadValue("use'makefree'node"));
             
-            PlayerEventListener.permissionMsg = format(loadValue("PermissionMessage"));
-            PlayerEventListener.lockedMsg = format(loadValue("LockedMessage"));
-            PlayerEventListener.freeMsg = format(loadValue("FreeMessage"));
-            PlayerEventListener.oneWayMsg = format(loadValue("OneWayMessage"));
-            correctMsg = format(loadValue("CorrectItemMessage"));
-            wrongMsg = format(loadValue("WrongItemMessage"));
-            notEnoughMoneyMsg = format(loadValue("NotEnoughMoneyMessage"));
-            displayCostMsg = format(loadValue("DisplayCostMessage"));
-            openMsg = format(loadValue("OpenMessage"));
-            balanceClearedMsg = format(loadValue("BalanceClearedMessage"));
-            privateTurnstileMsg = format(loadValue("PrivateMessage"));
+            //Load custom messages
+            TurnstileMessages.permission = loadValue("PermissionMessage");
+            TurnstileMessages.locked = loadValue("LockedMessage");
+            TurnstileMessages.free = loadValue("FreeMessage");
+            TurnstileMessages.oneWay = loadValue("OneWayMessage");
+            TurnstileMessages.correct = loadValue("CorrectItemMessage");
+            TurnstileMessages.wrong = loadValue("WrongItemMessage");
+            TurnstileMessages.notEnoughMoney = loadValue("NotEnoughMoneyMessage");
+            TurnstileMessages.displayCost = loadValue("DisplayCostMessage");
+            TurnstileMessages.open = loadValue("OpenMessage");
+            TurnstileMessages.balanceCleared = loadValue("BalanceClearedMessage");
+            TurnstileMessages.privateTurnstile = loadValue("PrivateMessage");
+            TurnstileMessages.inUse = loadValue("ChestInUseMessage");
+            TurnstileMessages.occupied = loadValue("TurnstileOccupiedMessage");
+            TurnstileMessages.formatAll();
             
             fis.close();
         }
         catch (Exception missingProp) {
-            System.err.println("Failed to load ButtonWarp "+this.getDescription().getVersion());
+            System.err.println("Failed to load Turnstile "+this.getDescription().getVersion());
             missingProp.printStackTrace();
         }
     }
@@ -229,45 +182,55 @@ public class TurnstileMain extends JavaPlugin {
     public static boolean hasPermission(Player player, String type) {
         return permission.has(player, "turnstile."+type);
     }
-    
-    /**
-     * Adds various Unicode characters and colors to a string
-     * 
-     * @param string The string being formated
-     * @return The formatted String
-     */
-    private static String format(String string) {
-        return string.replaceAll("&", "§").replaceAll("<ae>", "æ").replaceAll("<AE>", "Æ")
-                .replaceAll("<o/>", "ø").replaceAll("<O/>", "Ø")
-                .replaceAll("<a>", "å").replaceAll("<A>", "Å");
-    }
 
     /**
      * Reads save files to load Turnstile data
      *
      */
     public static void loadTurnstiles() {
-        File[] files = new File("plugins/Turnstile").listFiles();
+        File[] files = plugin.getDataFolder().listFiles();
 
+        //Organize files
+        if (files != null)
+            for (File file: files) {
+                String name = file.getName();
+
+                if (name.endsWith("Signs.dat")) {
+                    File dest = new File(dataFolder+"/Signs");
+                    dest.mkdir();
+                    dest = new File(dataFolder+"/Signs/"+name);
+                    file.renameTo(dest);
+                }
+                else if (name.endsWith(".dat")) {
+                    File dest = new File(dataFolder+"/Turnstiles");
+                    dest.mkdir();
+                    dest = new File(dataFolder+"/Turnstiles/"+name.substring(0, name.length() - 4)+".properties");
+                    file.renameTo(dest);
+                }
+            }
+        
+        File dir = new File(dataFolder+"/Turnstiles");
+        if (!dir.isDirectory())
+            dir.mkdir();
+        files = new File(dataFolder+"/Turnstiles/").listFiles();
+        
         for (File file: files) {
             String name = file.getName();
-            if (name.endsWith("Signs.dat")) {
-                File dest = new File("plugins/Turnstile/Signs");
-                dest.mkdir();
-                dest = new File("plugins/Turnstile/Signs/"+name);
-                file.renameTo(dest);
-            }
-            else if (name.endsWith(".dat")) {
+            if (name.endsWith(".properties"))
                 try {
-                    p.load(new FileInputStream(file));
+                    //Load the Properties file for reading
+                    Properties p = new Properties();
+                    FileInputStream fis = new FileInputStream(file);
+                    p.load(fis);
 
+                    //Construct a new Turnstile using the file name, Owner name, and Location data
                     String owner = p.getProperty("Owner");
                     String[] location = p.getProperty("Location").split("'");
                     String worldName = location[0];
                     int x = Integer.parseInt(location[1]);
                     int y = Integer.parseInt(location[2]);
                     int z = Integer.parseInt(location[3]);
-                    Turnstile turnstile = new Turnstile(name.substring(0, name.length() - 4), owner, worldName, x, y, z);
+                    Turnstile turnstile = new Turnstile(name.substring(0, name.length() - 11), owner, worldName, x, y, z);
 
                     turnstile.price = Double.parseDouble(p.getProperty("Price"));
                     turnstile.moneyEarned = Double.parseDouble(p.getProperty("MoneyEarned"));
@@ -305,24 +268,25 @@ public class TurnstileMain extends JavaPlugin {
                             y = Integer.parseInt(data[2]);
                             z = Integer.parseInt(data[3]);
                             int type = Integer.parseInt(data[4]);
-                            
+
                             turnstile.buttons.add(new TurnstileButton(data[0], x, y, z, type));
                         }
                     }
 
                     turnstiles.put(turnstile.name, turnstile);
+
+                    fis.close();
                 }
                 catch (Exception loadFailed) {
                     System.err.println("[Turnstile] Failed to load "+name);
                     loadFailed.printStackTrace();
                 }
-            }
-
-            if (!turnstiles.isEmpty())
-                return;
-
-            loadOld();
         }
+
+        if (!turnstiles.isEmpty())
+            return;
+
+        loadOld();
     }
 
     /**
@@ -331,7 +295,7 @@ public class TurnstileMain extends JavaPlugin {
      */
     public static void loadOld() {
         try {
-            File file = new File("plugins/Turnstile/turnstile.save");
+            File file = new File(dataFolder+"/turnstile.save");
             if (!file.exists())
                 return;
             
@@ -435,6 +399,8 @@ public class TurnstileMain extends JavaPlugin {
                     turnstile.save();
                 }
             }
+            
+            bReader.close();
         }
         catch (Exception loadFailed) {
             System.err.println("[Turnstile] Loading data from old save file has failed");
@@ -447,8 +413,8 @@ public class TurnstileMain extends JavaPlugin {
      *
      */
     public static void loadSigns() {
-        File dir = new File("plugins/Turnstile/Signs");
-        if (!dir.exists())
+        File dir = new File(dataFolder+"/Signs");
+        if (!dir.isDirectory())
             dir.mkdirs();
 
         for (File file: dir.listFiles()) {
@@ -467,25 +433,30 @@ public class TurnstileMain extends JavaPlugin {
 
                             Turnstile turnstile = findTurnstile(split[0]);
 
-                            Sign sign = null;
-
-                            try {
-                                sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
-                                        Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
+                            
+                            switch (block.getType()) {
+                                case SIGN: break;
+                                case SIGN_POST: break;
+                                case WALL_SIGN: break;
+                                default: continue;
                             }
-                            catch (Exception ex) {
-                            }
+                            
+                            Sign sign = (Sign)block.getState();
 
                             int lineNumber = Integer.parseInt(split[4]);
 
-                            if (turnstile != null && sign != null)
-                                statusSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
+                            if (turnstile != null) {
+                                TurnstileSign tsSign = new TurnstileSign(sign, turnstile, lineNumber);
+                                statusSigns.put(tsSign, tsSign.tickListener());
+                            }
                         }
                         catch (Exception loadFailed) {
-                            System.out.println("[Turnstile] Failed to load line:");
-                            System.out.println(line);
-                            System.out.println("in file:");
-                            System.out.println(file.getName());
+                            System.err.println("[Turnstile] Failed to load line:");
+                            System.err.println(line);
+                            System.err.println("in file:");
+                            System.err.println(file.getName());
                             loadFailed.printStackTrace();
                         }
                         finally {
@@ -508,25 +479,28 @@ public class TurnstileMain extends JavaPlugin {
 
                             Turnstile turnstile = findTurnstile(split[0]);
 
-                            Sign sign = null;
-
-                            try {
-                                sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
-                                        Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
+                            
+                            switch (block.getType()) {
+                                case SIGN: break;
+                                case SIGN_POST: break;
+                                case WALL_SIGN: break;
+                                default: continue;
                             }
-                            catch (Exception ex) {
-                            }
+                            
+                            Sign sign = (Sign)block.getState();
 
                             int lineNumber = Integer.parseInt(split[4]);
 
-                            if (turnstile != null && sign != null)
+                            if (turnstile != null)
                                 counterSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
                         }
                         catch (Exception loadFailed) {
-                            System.out.println("[Turnstile] Failed to load line:");
-                            System.out.println(line);
-                            System.out.println("in file:");
-                            System.out.println(file.getName());
+                            System.err.println("[Turnstile] Failed to load line:");
+                            System.err.println(line);
+                            System.err.println("in file:");
+                            System.err.println(file.getName());
                             loadFailed.printStackTrace();
                         }
                         finally {
@@ -548,19 +522,28 @@ public class TurnstileMain extends JavaPlugin {
 
                             Turnstile turnstile = findTurnstile(split[0]);
 
-                            Sign sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
-                                    Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
+                            
+                            switch (block.getType()) {
+                                case SIGN: break;
+                                case SIGN_POST: break;
+                                case WALL_SIGN: break;
+                                default: continue;
+                            }
+                            
+                            Sign sign = (Sign)block.getState();
 
                             int lineNumber = Integer.parseInt(split[4]);
 
-                            if (turnstile != null && sign != null)
+                            if (turnstile != null)
                                 moneySigns.add(new TurnstileSign(sign, turnstile, lineNumber));
                         }
                         catch (Exception loadFailed) {
-                            System.out.println("[Turnstile] Failed to load line:");
-                            System.out.println(line);
-                            System.out.println("in file:");
-                            System.out.println(file.getName());
+                            System.err.println("[Turnstile] Failed to load line:");
+                            System.err.println(line);
+                            System.err.println("in file:");
+                            System.err.println(file.getName());
                             loadFailed.printStackTrace();
                         }
                         finally {
@@ -582,19 +565,28 @@ public class TurnstileMain extends JavaPlugin {
 
                             Turnstile turnstile = findTurnstile(split[0]);
 
-                            Sign sign = (Sign)world.getBlockAt(Integer.parseInt(split[1]),
-                                    Integer.parseInt(split[2]), Integer.parseInt(split[3])).getState();
+                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
+                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
+                            
+                            switch (block.getType()) {
+                                case SIGN: break;
+                                case SIGN_POST: break;
+                                case WALL_SIGN: break;
+                                default: continue;
+                            }
+                            
+                            Sign sign = (Sign)block.getState();
 
                             int lineNumber = Integer.parseInt(split[4]);
 
-                            if (turnstile != null && sign != null)
+                            if (turnstile != null)
                                 itemSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
                         }
                         catch (Exception loadFailed) {
-                            System.out.println("[Turnstile] Failed to load line:");
-                            System.out.println(line);
-                            System.out.println("in file:");
-                            System.out.println(file.getName());
+                            System.err.println("[Turnstile] Failed to load line:");
+                            System.err.println(line);
+                            System.err.println("in file:");
+                            System.err.println(file.getName());
                             loadFailed.printStackTrace();
                         }
                         finally {
@@ -612,6 +604,10 @@ public class TurnstileMain extends JavaPlugin {
         }
     }
     
+    /**
+     * Invokes save() method for each Turnstile
+     * Also invokes the saveSigns() method
+     */
     public static void saveAll() {
         for (Turnstile turnstile: turnstiles.values())
             saveTurnstile(turnstile);
@@ -620,8 +616,10 @@ public class TurnstileMain extends JavaPlugin {
     }
 
     /**
-     * Writes Turnstile data to save file
-     * Old files are overwritten
+     * Writes the given Turnstile to its save file
+     * If the file already exists, it is overwritten
+     * 
+     * @param turnstile The given Turnstile
      */
     static void saveTurnstile(Turnstile turnstile) {
         try {
@@ -659,7 +657,10 @@ public class TurnstileMain extends JavaPlugin {
                 p.setProperty("Buttons", buttons.substring(2));
             }
 
-            p.store(new FileOutputStream("plugins/Turnstile/"+turnstile.name+".dat"), null);
+            //Write the Turnstile Properties to file
+            FileOutputStream fos = new FileOutputStream(new File(dataFolder+"/Turnstiles/"+turnstile.name+".properties"));
+            p.store(fos, null);
+            fos.close();
         }
         catch (Exception saveFailed) {
             System.err.println("[Turnstile] Save Failed!");
@@ -675,13 +676,13 @@ public class TurnstileMain extends JavaPlugin {
         try {
             for (World world: server.getWorlds()) {
                 LinkedList<TurnstileSign> tempList = new LinkedList<TurnstileSign>();
-                for (TurnstileSign sign: statusSigns)
+                for (TurnstileSign sign: statusSigns.keySet())
                     if (sign.sign.getWorld().equals(world))
                         tempList.add(sign);
                 
                 if (!tempList.isEmpty()) {
                     BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            "plugins/Turnstile/Signs/"+world.getName()+"StatusSigns.dat"));
+                            dataFolder+"/Signs/"+world.getName()+"StatusSigns.dat"));
                     
                     for (TurnstileSign sign: tempList) {
                         bWriter.write(sign.toString());
@@ -698,7 +699,7 @@ public class TurnstileMain extends JavaPlugin {
                 
                 if (!tempList.isEmpty()) {
                     BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            "plugins/Turnstile/Signs/"+world.getName()+"CounterSigns.dat"));
+                            dataFolder+"/Signs/"+world.getName()+"CounterSigns.dat"));
                     
                     for (TurnstileSign sign: tempList) {
                         bWriter.write(sign.toString());
@@ -715,7 +716,7 @@ public class TurnstileMain extends JavaPlugin {
                 
                 if (!tempList.isEmpty()) {
                     BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            "plugins/Turnstile/Signs/"+world.getName()+"MoneySigns.dat"));
+                            dataFolder+"/Signs/"+world.getName()+"MoneySigns.dat"));
                     
                     for (TurnstileSign sign: tempList) {
                         bWriter.write(sign.toString());
@@ -732,7 +733,7 @@ public class TurnstileMain extends JavaPlugin {
                 
                 if (!tempList.isEmpty()) {
                     BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            "plugins/Turnstile/Signs/"+world.getName()+"ItemSigns.dat"));
+                            dataFolder+"/Signs/"+world.getName()+"ItemSigns.dat"));
                     
                     for (TurnstileSign sign: tempList) {
                         bWriter.write(sign.toString());
@@ -773,10 +774,103 @@ public class TurnstileMain extends JavaPlugin {
      * 
      * @param turnstile The given Turnstile
      */
-    public static void removeTurnstile(String turnstile) {
-        turnstiles.remove(turnstile);
-        File trash = new File("plugins/Turnstile/"+turnstile+".dat");
+    public static void removeTurnstile(Turnstile turnstile) {
+        //Ensure that the Turnstile is closed
+        if (turnstile.open)
+            turnstile.close();
+        
+        Iterator<TurnstileSign> itr = counterSigns.iterator();
+        while (itr.hasNext()) {
+            TurnstileSign sign = itr.next();
+            if (sign.turnstile.equals(turnstile)) {
+                sign.clear();
+                itr.remove();
+            }
+        }
+        
+        itr = moneySigns.iterator();
+        while (itr.hasNext()) {
+            TurnstileSign sign = itr.next();
+            if (sign.turnstile.equals(turnstile)) {
+                sign.clear();
+                itr.remove();
+            }
+        }
+        
+        itr = itemSigns.iterator();
+        while (itr.hasNext()) {
+            TurnstileSign sign = itr.next();
+            if (sign.turnstile.equals(turnstile)) {
+                sign.clear();
+                itr.remove();
+            }
+        }
+        
+        for (TurnstileSign sign: TurnstileMain.statusSigns.keySet())
+            if (sign.turnstile.equals(turnstile)) {
+                sign.clear();
+                int id = statusSigns.get(sign);
+                server.getScheduler().cancelTask(id);
+                statusSigns.remove(sign);
+            }
+        
+        turnstiles.remove(turnstile.name);
+        
+        File trash = new File(dataFolder+"/Turnstiles/"+turnstile.name+".properties");
         trash.delete();
+    }
+    
+    /**
+     * Reloads Turnstile data
+     * 
+     */
+    public static void rl() {
+        rl(null);
+    }
+    
+    /**
+     * Reloads Turnstile data
+     * 
+     * @param player The Player reloading the data 
+     */
+    public static void rl(Player player) {
+        turnstiles.clear();
+        loadTurnstiles();
+        
+        System.out.println("[Turnstile] reloaded");
+        if (player != null)
+            player.sendMessage("Turnstile reloaded");
+    }
+    
+    /**
+     * Return the other half of the Double Chest
+     * If this is a not a Chest then null is returned
+     * If this is a single Chest then the normal Chest Block is returned
+     * 
+     * @return The other half of the Double Chest
+     */
+    public static Block getOtherHalf(Block block) {
+        if (block.getTypeId() != 54)
+            return null;
+        
+        Block neighbor = block.getRelative(0, 0, 1);
+        if (neighbor.getTypeId() == 54)
+            return neighbor;
+        
+        neighbor = block.getRelative(1, 0, 0);
+        if (neighbor.getTypeId() == 54)
+            return neighbor;
+        
+        neighbor = block.getRelative(0, 0, -1);
+        if (neighbor.getTypeId() == 54)
+            return neighbor;
+        
+        neighbor = block.getRelative(-1, 0, 0);
+        if (neighbor.getTypeId() == 54)
+            return neighbor;
+        
+        //Return the single Block
+        return block;
     }
     
     /**
@@ -803,5 +897,17 @@ public class TurnstileMain extends JavaPlugin {
         
         //Return null because the Turnstile was not found
         return null;
+    }
+    
+    /**
+     * Closes the Turnstile that the given Block is linked to
+     * 
+     * @param block The given Block
+     */
+    public static void closeTurnstile(Block block) {
+        //Iterate through all open Turnstiles to find the one this Block is linked to
+        for (Turnstile turnstile: TurnstileListener.openTurnstiles)
+            if (turnstile.hasBlock(block))
+                turnstile.close();
     }
 }

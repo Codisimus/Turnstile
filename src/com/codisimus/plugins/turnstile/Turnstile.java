@@ -1,6 +1,5 @@
 package com.codisimus.plugins.turnstile;
 
-import com.codisimus.plugins.turnstile.listeners.PlayerEventListener;
 import java.util.LinkedList;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -126,7 +125,7 @@ public class Turnstile {
                     inventory.clear(stack);
                 
                 //Increment earned and open the Turnstile
-                player.sendMessage(TurnstileMain.correctMsg);
+                player.sendMessage(TurnstileMessages.correct);
                 open(null);
                 itemsEarned++;
                 
@@ -141,7 +140,7 @@ public class Turnstile {
             }
         }
             
-        player.sendMessage(TurnstileMain.wrongMsg);
+        player.sendMessage(TurnstileMessages.wrong);
     }
 
     /**
@@ -154,14 +153,24 @@ public class Turnstile {
         if (debug)
             System.out.println("Turnstile "+name+" Debug: Charging "+player.getName());
         
+        String playerName = player.getName();
+        
         //Return true if the Player can open Turnstiles for free
         if (TurnstileMain.useOpenFreeNode && TurnstileMain.hasPermission(player, "openfree")) {
             if (debug)
-                System.out.println("Turnstile "+name+" Debug: "+player.getName()+" is not charged to open Turnstiles");
+                System.out.println("Turnstile "+name+" Debug: "+playerName+" is not charged to open Turnstiles");
+            
+            player.sendMessage("You are not charged to open Turnstiles");
             return true;
         }
         
-        String playerName = player.getName();
+        if (playerName.equals(owner)) {
+            if (Turnstile.debug)
+                System.out.println("Turnstile "+name+" Debug: "+playerName+" is not charged because they are the Owner");
+            
+            player.sendMessage("You are not charged to open your own Turnstile");
+            return true;
+        }
         
         //Clear the Player's account if the price is set to -411 (All)
         if (price == -411) {
@@ -169,7 +178,7 @@ public class Turnstile {
                 System.out.println("Turnstile "+name+" Debug: "+player.getName()+"'s account will be set to 0");
             
             Econ.economy.withdrawPlayer(playerName, Econ.economy.getBalance(playerName));
-            player.sendMessage(TurnstileMain.balanceClearedMsg);
+            player.sendMessage(TurnstileMessages.balanceCleared);
             return true;
         }
         
@@ -185,12 +194,12 @@ public class Turnstile {
             if (debug)
                 System.out.println("Turnstile "+name+" Debug: "+player.getName()+" cannot afford "+Econ.format(price));
             
-            player.sendMessage(TurnstileMain.notEnoughMoneyMsg);
+            player.sendMessage(TurnstileMessages.notEnoughMoney);
             return false;
         }
         
         //Increment earned by the price
-        player.sendMessage(TurnstileMain.openMsg.replaceAll("<price>", Econ.format(price)));
+        player.sendMessage(TurnstileMessages.open.replaceAll("<price>", Econ.format(price)));
         moneyEarned = moneyEarned + price;
         
         //Increment the amount of money earned on linked Signs
@@ -245,7 +254,7 @@ public class Turnstile {
         }
         
         //Return false because the Player does not have access rights
-        player.sendMessage(TurnstileMain.privateTurnstileMsg);
+        player.sendMessage(TurnstileMessages.privateTurnstile);
         return false;
     }
 
@@ -257,7 +266,7 @@ public class Turnstile {
     public void open(Block block) {
         open = true;
         setOpenedFrom(block);
-        PlayerEventListener.openTurnstiles.add(this);
+        TurnstileListener.openTurnstiles.add(this);
         
         //Start a new thread
         Thread thread = new Thread() {
@@ -268,8 +277,12 @@ public class Turnstile {
                 //Determine the type of the gate to know how to open it
                 switch (block.getType()) {
                     case FENCE: block.setTypeId(0); break; //Change FENCE to AIR
-                    //case TRAP_DOOR: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Open TrapDoor
-                    //case FENCE_GATE: break; //Open FenceGate
+                    
+                    case TRAP_DOOR: //Fall through
+                    case FENCE_GATE: //Open FenceGate/TrapDoor
+                        //Open the gate if it is closed
+                        block.setData((byte)(block.getState().getData().getData() | 4));
+                        break;
 
                     case WOOD_DOOR: //Fall through
                     case WOODEN_DOOR: //Fall through
@@ -328,9 +341,11 @@ public class Turnstile {
 
         //Determine the type of the gate to know how to close it
         switch (block.getType()) {
-            //case FENCE: block.setTypeId(85); break; //Change AIR to FENCE
-            //case TRAP_DOOR: TrapDoor trapDoor = (TrapDoor)gate.getState().getData(); break; //Close TrapDoor
-            //case FENCE_GATE: break; //Close FenceGate
+            case TRAP_DOOR: //Fall through
+            case FENCE_GATE: //Close FenceGate/TrapDoor
+                //Close the gate if it is open
+                block.setData((byte)(block.getState().getData().getData() & 11));
+                break;
 
             case WOOD_DOOR: //Fall through
             case WOODEN_DOOR: //Fall through
@@ -358,7 +373,10 @@ public class Turnstile {
         }
         
         open = false;
-        PlayerEventListener.openTurnstiles.remove(this);
+        TurnstileListener.openTurnstiles.remove(this);
+        for (Player player: TurnstileListener.occupiedTrendulas.keySet())
+            if (isBlock(TurnstileListener.occupiedTrendulas.get(player)))
+                TurnstileListener.occupiedTrendulas.remove(player);
     }
     
     /**
@@ -437,7 +455,7 @@ public class Turnstile {
             return true;
         
         //Return true if Player is the owner of the Turnstile's bank
-        if (owner.substring(0, 5).equalsIgnoreCase("bank:") &&
+        if (owner.startsWith("bank:") &&
                 Econ.economy.isBankOwner(owner.substring(5), playerName).transactionSuccess())
             return true;
         
@@ -467,7 +485,7 @@ public class Turnstile {
         
         //Determine the type of the Block to find out the direction opened from
         switch (block.getType()) {
-            case STONE_BUTTON: openedFrom = ((Button)block.getState().getData()).getFacing(); return;
+            case STONE_BUTTON: openedFrom = ((Button)block.getState().getData()).getFacing(); break;
 
             case WOOD_PLATE: //Fall through
             case STONE_PLATE:
@@ -528,7 +546,7 @@ public class Turnstile {
     }
     
     /**
-     * Writes the Turnstile data to a file
+     * Writes the Turnstile data to file
      * 
      */
     public void save() {

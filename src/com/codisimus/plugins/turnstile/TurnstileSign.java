@@ -31,11 +31,11 @@ public class TurnstileSign {
      * Updates the Turnstile Sign when it becomes either locked, free, or open
      * 
      */
-    public void tickListener() {
+    public int tickListener() {
         final World world = TurnstileMain.server.getWorld(turnstile.world);
         
         //Repeat every second
-    	TurnstileMain.server.getScheduler().scheduleSyncRepeatingTask(TurnstileMain.plugin, new Runnable() {
+    	return TurnstileMain.server.getScheduler().scheduleSyncRepeatingTask(TurnstileMain.plugin, new Runnable() {
             @Override
     	    public void run() {
                 long time = world.getTime();
@@ -73,6 +73,16 @@ public class TurnstileSign {
         double newEarned = Double.parseDouble(earned) + turnstile.price;
 
         sign.setLine(line, Econ.format(newEarned));
+        sign.update();
+    }
+    
+    /**
+     * Clears each line of the Sign
+     * Should only be used before unlinking the Sign
+     */
+    public void clear() {
+        for (int i = 0; i < 4; i++)
+            sign.setLine(i, "");
         sign.update();
     }
     
