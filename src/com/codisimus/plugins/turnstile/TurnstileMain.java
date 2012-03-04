@@ -806,13 +806,16 @@ public class TurnstileMain extends JavaPlugin {
             }
         }
         
-        for (TurnstileSign sign: TurnstileMain.statusSigns.keySet())
+        itr = statusSigns.keySet().iterator();
+        while (itr.hasNext()) {
+            TurnstileSign sign = itr.next();
             if (sign.turnstile.equals(turnstile)) {
                 sign.clear();
                 int id = statusSigns.get(sign);
                 server.getScheduler().cancelTask(id);
                 statusSigns.remove(sign);
             }
+        }
         
         turnstiles.remove(turnstile.name);
         

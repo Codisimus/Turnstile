@@ -1,5 +1,6 @@
 package com.codisimus.plugins.turnstile;
 
+import java.util.Iterator;
 import java.util.LinkedList;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -374,9 +375,15 @@ public class Turnstile {
         
         open = false;
         TurnstileListener.openTurnstiles.remove(this);
-        for (Player player: TurnstileListener.occupiedTrendulas.keySet())
+        
+        Iterator<Player> itr = TurnstileListener.occupiedTrendulas.keySet().iterator();
+        Player player;
+        
+        while (itr.hasNext()) {
+            player = itr.next();
             if (isBlock(TurnstileListener.occupiedTrendulas.get(player)))
                 TurnstileListener.occupiedTrendulas.remove(player);
+        }
     }
     
     /**
@@ -530,6 +537,17 @@ public class Turnstile {
      * @return True if the Location data is the same
      */
     public boolean hasBlock(Block block) {
+        switch (block.getType()) {
+            case WOOD_DOOR: //Fall through
+            case WOODEN_DOOR: //Fall through
+            case IRON_DOOR: //Fall through
+            case IRON_DOOR_BLOCK: //Get bottom half
+                if (((Door)block.getState().getData()).isTopHalf())
+                    block = block.getRelative(BlockFace.DOWN);
+                break;
+            default: break;
+        }
+        
         //Return True if the Trendulla Block matches the given Block
         if (block.getX() == x && block.getY() == y &&
                 block.getZ() == z && block.getWorld().getName().equals(world))
