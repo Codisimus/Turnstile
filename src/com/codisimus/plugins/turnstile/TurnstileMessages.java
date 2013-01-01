@@ -19,10 +19,9 @@ public class TurnstileMessages {
     static String privateTurnstile;
     static String inUse;
     static String occupied;
-    
+
     /**
      * Formats all Turnstile messages
-     * 
      */
     static void formatAll() {
         permission = format(permission);
@@ -39,16 +38,16 @@ public class TurnstileMessages {
         inUse = format(inUse);
         occupied = format(occupied);
     }
-    
+
     /**
      * Adds various Unicode characters and colors to a string
-     * 
+     *
      * @param string The string being formated
      * @return The formatted String
      */
     private static String format(String string) {
-        return string.replaceAll("&", "§").replaceAll("<ae>", "æ").replaceAll("<AE>", "Æ")
-                .replaceAll("<o/>", "ø").replaceAll("<O/>", "Ø")
-                .replaceAll("<a>", "å").replaceAll("<A>", "Å");
+        return string.replace("&", "§").replace("<ae>", "æ").replace("<AE>", "Æ")
+                .replace("<o/>", "ø").replace("<O/>", "Ø")
+                .replace("<a>", "å").replace("<A>", "Å");
     }
 }

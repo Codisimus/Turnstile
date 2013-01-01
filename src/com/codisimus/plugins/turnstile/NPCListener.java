@@ -14,7 +14,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
  * @author Cody
  */
 public class NPCListener implements Listener {
-    
+
     /**
      * Listens for Players interacting with linked NPCs
      *
@@ -24,19 +24,22 @@ public class NPCListener implements Listener {
     public void onPlayerInteractEntity (PlayerInteractEntityEvent event) {
         //Return if the Entity clicked is not an NPC
         Entity entity = event.getRightClicked();
-        if(!CitizensManager.isNPC(entity))
+        if(!CitizensManager.isNPC(entity)) {
             return;
-        
+        }
+
         HumanNPC npc = CitizensManager.get(entity);
-        
+
         //Return if the switch is not linked to a Turnstile
         Turnstile turnstile = TurnstileMain.findTurnstile(npc.getBaseLocation().getBlock());
-        if (turnstile == null)
+        if (turnstile == null) {
             return;
+        }
 
         //Return if the Turnstile is already open
-        if (turnstile.open)
+        if (turnstile.open) {
             return;
+        }
 
         //Return if the Player does not have permission to open Turnstiles
         Player player = event.getPlayer();
@@ -46,11 +49,12 @@ public class NPCListener implements Listener {
         }
 
         //Return if the Player does not have access rights to the Turnstile
-        if (!turnstile.hasAccess(player))
+        if (!turnstile.hasAccess(player)) {
             return;
+        }
 
         long time = player.getWorld().getTime();
-        
+
         //Return if the Turnstile is locked
         if (turnstile.isLocked(time)) {
             player.sendMessage(TurnstileMessages.locked);
@@ -63,7 +67,7 @@ public class NPCListener implements Listener {
             turnstile.open(null);
             return;
         }
-        
+
         turnstile.checkContents(npc.getInventory(), player);
     }
 }

@@ -4,7 +4,7 @@ import org.bukkit.block.Block;
 
 /**
  * A TurnstileButton is a Block location and the Type ID of the Block
- * 
+ *
  * @author Codisimus
  */
 public class TurnstileButton {
@@ -16,7 +16,7 @@ public class TurnstileButton {
 
     /**
      * Constructs a new Button with the given Block
-     * 
+     *
      * @param block The given Block
      */
     public TurnstileButton (Block block) {
@@ -26,10 +26,10 @@ public class TurnstileButton {
         z = block.getZ();
         type = block.getTypeId();
     }
-    
+
     /**
      * Constructs a new Button with the given Block data
-     * 
+     *
      * @param world The name of the World
      * @param x The x-coordinate of the Block
      * @param y The y-coordinate of the Block
@@ -48,11 +48,11 @@ public class TurnstileButton {
      * Returns the String representation of this TurnstileButton
      * The format of the returned String is as follows
      * world'x'y'z'type
-     * 
+     *
      * @return The String representation of this TurnstileButton
      */
     @Override
     public String toString() {
-        return world+"'"+x+"'"+y+"'"+z+"'"+type;
+        return world + "'" + x + "'" + y + "'" + z + "'" + type;
     }
 }
