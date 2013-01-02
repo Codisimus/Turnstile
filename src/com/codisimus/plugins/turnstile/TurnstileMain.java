@@ -225,14 +225,15 @@ public class TurnstileMain extends JavaPlugin {
             dir.mkdir();
         }
         files = new File(dataFolder+"/Turnstiles/").listFiles();
+        FileInputStream fis = null;
 
         for (File file: files) {
             String name = file.getName();
-            if (name.endsWith(".properties"))
+            if (name.endsWith(".properties")) {
                 try {
                     //Load the Properties file for reading
                     Properties p = new Properties();
-                    FileInputStream fis = new FileInputStream(file);
+                    fis = new FileInputStream(file);
                     p.load(fis);
 
                     //Construct a new Turnstile using the file name, Owner name, and Location data
@@ -268,6 +269,18 @@ public class TurnstileMain extends JavaPlugin {
                     turnstile.lockedStart = Integer.parseInt(time[0]);
                     turnstile.lockedEnd = Integer.parseInt(time[1]);
 
+                    if (p.containsKey("CooldownTime")) {
+                        String[] resetTime = p.getProperty("CooldownTime").split("'");
+                        turnstile.days = Integer.parseInt(resetTime[0]);
+                        turnstile.hours = Integer.parseInt(resetTime[1]);
+                        turnstile.minutes = Integer.parseInt(resetTime[2]);
+                        turnstile.seconds = Integer.parseInt(resetTime[3]);
+
+                        turnstile.privateWhileOnCooldown = Boolean.parseBoolean(p.getProperty("RoundDownTime"));
+                        turnstile.privateWhileOnCooldown = Boolean.parseBoolean(p.getProperty("PrivateWhileOnCooldown"));
+                        turnstile.amountPerCooldown = Integer.parseInt(p.getProperty("PlayersAllowedInPrivateCooldown"));
+                    }
+
                     String access = p.getProperty("Access");
                     if (!access.equals("public")) {
                         turnstile.access = new LinkedList<String>();
@@ -293,10 +306,25 @@ public class TurnstileMain extends JavaPlugin {
                     turnstiles.put(turnstile.name, turnstile);
 
                     fis.close();
+
+                    file = new File(dataFolder + "/Turnstiles/"
+                                    + turnstile.name + ".cooldowntimes");
+                    if (file.exists()) {
+                        fis = new FileInputStream(file);
+                        turnstile.onCooldown.load(fis);
+                    } else {
+                        turnstile.save();
+                    }
                 } catch (Exception loadFailed) {
                     logger.severe("Failed to load " + name);
                     loadFailed.printStackTrace();
+                } finally {
+                    try {
+                        fis.close();
+                    } catch (Exception e) {
+                    }
                 }
+            }
         }
 
         if (!turnstiles.isEmpty()) {
@@ -451,7 +479,7 @@ public class TurnstileMain extends JavaPlugin {
                     while (line != null) {
                         try {
                             World world = server.getWorld(fileName.substring(0, fileName.length() - 15));
-                            
+
                             String[] split = line.split("'");
 
                             Turnstile turnstile = findTurnstile(split[0]);
@@ -493,7 +521,7 @@ public class TurnstileMain extends JavaPlugin {
                     while (line != null) {
                         try {
                             World world = server.getWorld(fileName.substring(0, fileName.length() - 16));
-                            
+
                             String[] split = line.split("'");
 
                             Turnstile turnstile = findTurnstile(split[0]);
@@ -534,7 +562,7 @@ public class TurnstileMain extends JavaPlugin {
                     while (line != null) {
                         try {
                             World world = server.getWorld(fileName.substring(0, fileName.length() - 14));
-                            
+
                             String[] split = line.split("'");
 
                             Turnstile turnstile = findTurnstile(split[0]);
@@ -575,7 +603,7 @@ public class TurnstileMain extends JavaPlugin {
                     while (line != null) {
                         try {
                             World world = server.getWorld(fileName.substring(0, fileName.length() - 13));
-                            
+
                             String[] split = line.split("'");
 
                             Turnstile turnstile = findTurnstile(split[0]);
@@ -649,6 +677,11 @@ public class TurnstileMain extends JavaPlugin {
             p.setProperty("AutoCloseTimer", String.valueOf(turnstile.timeOut));
             p.setProperty("FreeTimeRange", turnstile.freeStart+"-"+turnstile.freeEnd);
             p.setProperty("LockedTimeRange", turnstile.lockedStart+"-"+turnstile.lockedEnd);
+            p.setProperty("CooldownTime", turnstile.days+"'" + turnstile.hours + "'"
+                            + turnstile.minutes + "'" + turnstile.seconds);
+            p.setProperty("RoundDownTime", String.valueOf(turnstile.roundDown));
+            p.setProperty("PrivateWhileOnCooldown", String.valueOf(turnstile.privateWhileOnCooldown));
+            p.setProperty("PlayersAllowedInPrivateCooldown", String.valueOf(turnstile.amountPerCooldown));
 
             if (turnstile.access == null) {
                 p.setProperty("Access", "public");
@@ -670,8 +703,12 @@ public class TurnstileMain extends JavaPlugin {
             }
 
             //Write the Turnstile Properties to file
-            FileOutputStream fos = new FileOutputStream(new File(dataFolder+"/Turnstiles/"+turnstile.name+".properties"));
+            FileOutputStream fos = new FileOutputStream(dataFolder+"/Turnstiles/"+turnstile.name+".properties");
             p.store(fos, null);
+            fos.close();
+
+            fos = new FileOutputStream(dataFolder+"/Turnstiles/"+turnstile.name+".cooldowntimes");
+            turnstile.onCooldown.store(fos, null);
             fos.close();
         } catch (Exception saveFailed) {
             logger.severe("Save Failed!");
@@ -732,7 +769,7 @@ public class TurnstileMain extends JavaPlugin {
                         tempList.add(sign);
                     }
                 }
-                
+
                 if (!tempList.isEmpty()) {
                     BufferedWriter bWriter = new BufferedWriter(new FileWriter(
                             dataFolder + "/Signs/" + world.getName()
@@ -752,7 +789,7 @@ public class TurnstileMain extends JavaPlugin {
                         tempList.add(sign);
                     }
                 }
-                
+
                 if (!tempList.isEmpty()) {
                     BufferedWriter bWriter = new BufferedWriter(new FileWriter(
                             dataFolder + "/Signs/" + world.getName()
@@ -790,7 +827,7 @@ public class TurnstileMain extends JavaPlugin {
         turnstiles.put(turnstile.name, turnstile);
         turnstile.save();
     }
-    
+
     /**
      * Removes the given Turnstile from the collection of Turnstiles
      *
@@ -856,7 +893,7 @@ public class TurnstileMain extends JavaPlugin {
     /**
      * Reloads Turnstile data
      *
-     * @param player The Player reloading the data 
+     * @param player The Player reloading the data
      */
     public static void rl(Player player) {
         turnstiles.clear();

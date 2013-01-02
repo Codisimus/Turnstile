@@ -1,7 +1,10 @@
 package com.codisimus.plugins.turnstile;
 
+import java.util.Calendar;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Properties;
+import org.apache.commons.lang.time.DateUtils;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -43,6 +46,18 @@ public class Turnstile {
     public long freeEnd = 0;
     public long lockedStart = 0;
     public long lockedEnd = 0;
+
+    /* Cooldown time (will never cooldown if any are negative) */
+    public int days;
+    public int hours;
+    public int minutes;
+    public int seconds;
+    public boolean roundDown = false;
+
+    public Properties onCooldown = new Properties();
+    public String addedToCooldown = ""; //Should be removed if the Player fails to pass through the Turnstile
+    public boolean privateWhileOnCooldown = false;
+    public int amountPerCooldown = 1; //This value only applies when privateWhileOnCooldown == true
 
     public LinkedList<String> access = null; //List of Groups that have access (private if empty, public if null)
     public LinkedList<TurnstileButton> buttons = new LinkedList<TurnstileButton>(); //List of Blocks that activate the Warp
@@ -94,10 +109,10 @@ public class Turnstile {
      */
     public boolean checkOneWay(Block from) {
         switch (openedFrom) {
-        case NORTH: return from.getX() < x;
-        case SOUTH: return from.getX() > x;
-        case EAST: return from.getZ() < z;
-        case WEST: return from.getZ() > z;
+        case NORTH: return from.getZ() < z;
+        case SOUTH: return from.getZ() > z;
+        case EAST: return from.getX() < x;
+        case WEST: return from.getX() > x;
         default: return true;
         }
     }
@@ -150,6 +165,14 @@ public class Turnstile {
      */
     public boolean checkBalance(Player player) {
         String playerName = player.getName();
+        if (!addedToCooldown.isEmpty() && !addedToCooldown.equals(playerName)) {
+            if (debug) {
+                TurnstileMain.logger.warning(name + " Debug: " + playerName
+                                    + " is trying to enter a Turnstile that they did no pay for");
+            }
+            player.sendMessage(TurnstileMessages.noFraud);
+            return false;
+        }
 
         if (debug) {
             TurnstileMain.logger.warning(name + " Debug: Charging " + playerName);
@@ -202,6 +225,10 @@ public class Turnstile {
             }
 
             player.sendMessage(TurnstileMessages.notEnoughMoney);
+            if (!addedToCooldown.isEmpty()) {
+                onCooldown.remove(addedToCooldown);
+                addedToCooldown = "";
+            }
             return false;
         }
 
@@ -228,54 +255,92 @@ public class Turnstile {
      * @return true if the Player has access rights
      */
     public boolean hasAccess(Player player) {
+        String playerName = player.getName();
         if (debug) {
-            TurnstileMain.logger.warning(name + " Debug: Checking access rights for " + player.getName());
+            TurnstileMain.logger.warning(name + " Debug: Checking access rights for " + playerName);
         }
 
-        //Return true if the Turnstile is public
-        if (access == null) {
-            if (debug) {
-                TurnstileMain.logger.warning(name + " Debug: Turnstile is public");
-            }
-            return true;
-        }
+        if (access != null) { //Turnstile is not public
+            if (access.isEmpty()) { //Turnstile is private
+                if (debug) {
+                    TurnstileMain.logger.warning(name + " Debug: Turnstile is private");
+                    TurnstileMain.logger.warning(name + " Debug: " + playerName
+                            + (isOwner(player) ? " is an owner" : " is not an owner"));
+                }
 
-        //Return isOwner() if the Turnstile is private
-        if (access.isEmpty()) {
-            if (debug) {
-                TurnstileMain.logger.warning(name + " Debug: Turnstile is private");
-                TurnstileMain.logger.warning(name + " Debug: " + player.getName()
-                        + (isOwner(player) ? " is an owner" : " is not an owner"));
-            }
+                if (!isOwner(player)) {
+                    player.sendMessage(TurnstileMessages.privateTurnstile);
+                    return false;
+                }
+            } else { //Turnstile has group access
+                if (debug) {
+                    TurnstileMain.logger.warning(name + " Debug: Turnstile has group access");
+                }
 
-            if (isOwner(player)) {
-                return true;
+                //Return true if the Player is in a group that has access
+                World world = null;
+                for (String group: access) {
+                    if (debug) {
+                        TurnstileMain.logger.warning(name + " Debug: " + playerName
+                                + (TurnstileMain.permission.playerInGroup(world, playerName, group)
+                                    ? " is in group "
+                                    : " is not in group ")
+                                + group);
+                    }
+
+                    if (!TurnstileMain.permission.playerInGroup(world, playerName, group)) {
+                        player.sendMessage(TurnstileMessages.privateTurnstile);
+                        return false;
+                    }
+                }
             }
         } else {
             if (debug) {
-                TurnstileMain.logger.warning(name + " Debug: Turnstile has group access");
-            }
-
-            //Return true if the Player is in a group that has access
-            World world = null;
-            for (String group: access) {
-                if (debug) {
-                    TurnstileMain.logger.warning(name + " Debug: " + player.getName()
-                            + (TurnstileMain.permission.playerInGroup(world, player.getName(), group)
-                                ? " is in group "
-                                : " is not in group ")
-                            + group);
-                }
-
-                if (TurnstileMain.permission.playerInGroup(world, player.getName(), group)) {
-                    return true;
-                }
+                TurnstileMain.logger.warning(name + " Debug: Turnstile is public");
             }
         }
 
-        //Return false because the Player does not have access rights
-        player.sendMessage(TurnstileMessages.privateTurnstile);
-        return false;
+        if (days == 0 && hours == 0 && minutes == 0 && seconds == 0) { //Does not use cooldown
+            return true;
+        }
+
+        if (!onCooldown.isEmpty()) { //Turnstile currently on cooldown
+            if (!onCooldown.containsKey(playerName)) { //Player currently on cooldown
+                if (privateWhileOnCooldown) {
+                    String time = (String) onCooldown.values().toArray()[0];
+                    String timeRemaining = getTimeRemaining(Long.parseLong(time));
+                    if (timeRemaining == null || !timeRemaining.equals("0")) { //Still cooling down
+                        if (onCooldown.size() >= amountPerCooldown) { //Full amount is already on cooldown
+                            player.sendMessage(TurnstileMessages.cooldown.replace("<time>", timeRemaining));
+                            return false;
+                        } else {
+                            onCooldown.setProperty(playerName, time);
+                            addedToCooldown = playerName;
+                        }
+                    } else {
+                        onCooldown.clear();
+                        addToCooldown(playerName);
+                        addedToCooldown = playerName;
+                    }
+                } else {
+                    addToCooldown(playerName);
+                    addedToCooldown = playerName;
+                }
+            } else {
+                String time = getTimeRemaining(Long.parseLong(onCooldown.getProperty(playerName)));
+                if (time == null || !time.equals("0")) { //Still cooling down
+                    return true;
+                }
+                onCooldown.remove(playerName);
+                addToCooldown(playerName);
+                addedToCooldown = playerName;
+            }
+        } else {
+            addToCooldown(playerName);
+            addedToCooldown = playerName;
+        }
+
+        return true;
     }
 
     /**
@@ -401,6 +466,11 @@ public class Turnstile {
                 TurnstileListener.occupiedTrendulas.remove(player);
             }
         }
+
+        if (!addedToCooldown.isEmpty()) {
+            onCooldown.remove(addedToCooldown);
+            addedToCooldown = "";
+        }
     }
 
     /**
@@ -463,6 +533,40 @@ public class Turnstile {
             return freeStart < time && time < freeEnd;
         } else {
             return freeStart < time || time < freeEnd;
+        }
+    }
+
+    /**
+     * Returns the remaining time until the Button resets
+     * Returns null if the Button never resets
+     *
+     * @param time The given time
+     * @return the remaining time until the Button resets
+     */
+    private String getTimeRemaining(long time) {
+        //Return null if the reset time is set to never
+        if (days < 0 || hours < 0 || minutes < 0 || seconds < 0) {
+            return null;
+        }
+
+        //Calculate the time that the Warp will reset
+        time += days * DateUtils.MILLIS_PER_DAY
+                + hours * DateUtils.MILLIS_PER_HOUR
+                + minutes * DateUtils.MILLIS_PER_MINUTE
+                + seconds * DateUtils.MILLIS_PER_SECOND;
+
+        long timeRemaining = time - getCurrentMillis();
+
+        if (timeRemaining > DateUtils.MILLIS_PER_DAY) {
+            return (int) timeRemaining / DateUtils.MILLIS_PER_DAY + " day(s)";
+        } else if (timeRemaining > DateUtils.MILLIS_PER_HOUR) {
+            return (int) timeRemaining / DateUtils.MILLIS_PER_HOUR + " hour(s)";
+        } else if (timeRemaining > DateUtils.MILLIS_PER_MINUTE) {
+            return (int) timeRemaining / DateUtils.MILLIS_PER_MINUTE + " minute(s)";
+        } else if (timeRemaining > DateUtils.MILLIS_PER_SECOND) {
+            return (int) timeRemaining / DateUtils.MILLIS_PER_SECOND + " second(s)";
+        } else {
+            return "0";
         }
     }
 
@@ -658,6 +762,28 @@ public class Turnstile {
             } catch (Exception e) {
             }
         }
+    }
+
+    public void addToCooldown(String player) {
+        onCooldown.setProperty(player, String.valueOf(getCurrentMillis()));
+    }
+
+    public long getCurrentMillis() {
+        Calendar cal = Calendar.getInstance();
+
+        if (roundDown) {
+            if (seconds == 0) {
+                cal.set(Calendar.SECOND, 0);
+                if (minutes != 0) {
+                    cal.set(Calendar.MINUTE, 0);
+                    if (hours != 0) {
+                        cal.set(Calendar.HOUR_OF_DAY, 0);
+                    }
+                }
+            }
+        }
+
+        return Calendar.getInstance().getTimeInMillis();
     }
 
     /**

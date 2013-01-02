@@ -19,6 +19,8 @@ public class TurnstileMessages {
     static String privateTurnstile;
     static String inUse;
     static String occupied;
+    static String noFraud;
+    static String cooldown;
 
     /**
      * Formats all Turnstile messages
@@ -37,6 +39,8 @@ public class TurnstileMessages {
         privateTurnstile = format(privateTurnstile);
         inUse = format(inUse);
         occupied = format(occupied);
+        noFraud = format(noFraud);
+        cooldown = format(cooldown);
     }
 
     /**

@@ -29,8 +29,8 @@ import org.bukkit.material.Door;
 public class TurnstileCommand implements CommandExecutor {
     public static String command;
     private static enum Action {
-        HELP, SIGN, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK,
-        DELETE, FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME, RL
+        HELP, SIGN, MAKE, LINK, PRICE, OWNER, ACCESS, BANK, UNLINK, DELETE,
+        FREE, LOCKED, NOFRAUD, COLLECT, LIST, INFO, RENAME, COOLDOWN, RL
     }
     private static enum Help { CREATE, SETUP, SIGN }
     private static final HashSet MAKE_TRANSPARENT = Sets.newHashSet((byte)0, (byte)6,
@@ -279,6 +279,19 @@ public class TurnstileCommand implements CommandExecutor {
                 return true;
             case 3:
                 locked(player, args[1], args[2]);
+                return true;
+            default:
+                sendSetupHelp(player);
+                return true;
+            }
+
+        case COOLDOWN:
+            switch (args.length) {
+            case 1:
+                cooldown(player, null);
+                return true;
+            case 2:
+                cooldown(player, args[1]);
                 return true;
             default:
                 sendSetupHelp(player);
@@ -961,7 +974,8 @@ public class TurnstileCommand implements CommandExecutor {
         if (turnstile == null) {
             return;
         }
-                //Cancel if the Player does not own the Turnstile
+
+        //Cancel if the Player does not own the Turnstile
         if (!turnstile.isOwner(player)) {
             player.sendMessage("Only the Turnstile Owner can do that.");
             return;
@@ -975,6 +989,33 @@ public class TurnstileCommand implements CommandExecutor {
         player.sendMessage("Turnstile " + turnstile.name + " is locked from "
                             + time[0] + " to " + time[1] + "!");
         turnstile.save();
+    }
+
+    /**
+     * Initiates a Conversation for modifying the cooldown of a Turnstile
+     *
+     * @param player The Player Setting the cooldown
+     * @param name The name of the Turnstile being modified
+     */
+    private static void cooldown(Player player, String name) {
+        //Cancel if the Player does not have permission to use the command
+        if (!TurnstileMain.hasPermission(player, "set.cooldown")) {
+            player.sendMessage(TurnstileMessages.permission);
+            return;
+        }
+
+        Turnstile turnstile = getTurnstile(player, name);
+        if (turnstile == null) {
+            return;
+        }
+
+        //Cancel if the Player does not own the Turnstile
+        if (!turnstile.isOwner(player)) {
+            player.sendMessage("Only the Turnstile Owner can do that.");
+            return;
+        }
+
+        new CooldownConvo(player, turnstile);
     }
 
     /**
@@ -1149,7 +1190,7 @@ public class TurnstileCommand implements CommandExecutor {
     private static void sendHelp(Player player) {
         player.sendMessage("§e     Turnstile Help Page:");
         player.sendMessage("§2/"+command+" list§b List all Turnstiles");
-        player.sendMessage("§2/"+command+" info (Name)§b Display info of Turnstile");
+        player.sendMessage("§2/"+command+" info [Name])§b Display info of Turnstile");
         player.sendMessage("§2/"+command+" help create§b Display Turnstile Create Help Page");
         player.sendMessage("§2/"+command+" help setup§b Display Turnstile Setup Help Page");
         player.sendMessage("§2/"+command+" help sign§b Display Turnstile Sign Help Page");
@@ -1163,14 +1204,14 @@ public class TurnstileCommand implements CommandExecutor {
      */
     private static void sendCreateHelp(Player player) {
         player.sendMessage("§e     Turnstile Create Help Page:");
-        player.sendMessage("§2/"+command+" make [Name]§b Make target Block into a Turnstile");
-        player.sendMessage("§2/"+command+" rename (Name) [NewName]§b Rename a Turnstile");
-        player.sendMessage("§2/"+command+" link [Name]§b Link target Block with Turnstile");
+        player.sendMessage("§2/"+command+" make <Name>§b Make target Block into a Turnstile");
+        player.sendMessage("§2/"+command+" rename [Name] <NewName>§b Rename a Turnstile");
+        player.sendMessage("§2/"+command+" link <Name>§b Link target Block with Turnstile");
         if (TurnstileMain.citizens) {
-            player.sendMessage("§2/"+command+" link [Name] [NPC-UID]§b Link NPC with Turnstile");
+            player.sendMessage("§2/"+command+" link <Name> <NPC-UID>§b Link NPC with Turnstile");
         }
         player.sendMessage("§2/"+command+" unlink§b Unlink target Block with Turnstile");
-        player.sendMessage("§2/"+command+" delete (Name)§b Delete Turnstile");
+        player.sendMessage("§2/"+command+" delete [Name]§b Delete Turnstile");
     }
 
     /**
@@ -1180,20 +1221,23 @@ public class TurnstileCommand implements CommandExecutor {
      */
     private static void sendSetupHelp(Player player) {
         player.sendMessage("§e     Turnstile Setup Help Page:");
-        player.sendMessage("§2/"+command+" price (Name) [Price]§b Set cost of Turnstile");
+        player.sendMessage("§2/"+command+" price [Name] <Price>§b Set cost of Turnstile");
         player.sendMessage("§2/"+command+" price§b Set cost to items in target Chest");
-        player.sendMessage("§2/"+command+" price (Name) [Amount] [Item] (Durability)§b Set cost to item");
-        player.sendMessage("§2/"+command+" price (Name) [Amount] [Item] [Enchantment1&Enchantment2...]§b Set cost to item");
-        player.sendMessage("§2/"+command+" nofraud (Name) ['true' or 'false']§b Set noFraud mode");
-        player.sendMessage("§2/"+command+" access (Name) public§b Allow anyone to open the Turnstile");
-        player.sendMessage("§2/"+command+" access (Name) private§b Allow only the Owner to open");
-        player.sendMessage("§2/"+command+" access (Name) [Group1,Group2,...]");
+        player.sendMessage("§2/"+command+" price [Name] <Amount> <Item> [Durability]§b Set cost to item");
+        player.sendMessage("§2/"+command+" price [Name] <Amount> <Item> <Enchantment1&Enchantment2...>§b Set cost to item");
+        player.sendMessage("§2/"+command+" nofraud [Name] <true|false>§b Set noFraud mode");
+        player.sendMessage("§2/"+command+" access [Name] public§b Allow anyone to open the Turnstile");
+        player.sendMessage("§2/"+command+" access [Name] private§b Allow only the Owner to open");
+        player.sendMessage("§2/"+command+" access [Name] <Group1,Group2,...>");
         player.sendMessage("§bAllow only specific Groups to open the Turnstile");
-        player.sendMessage("§2/"+command+" free (Name) [StartTick]-[EndTick]§b Free during timespan");
-        player.sendMessage("§2/"+command+" locked (Name) [StartTick]-[EndTick]§b Locked for timespan");
+        player.sendMessage("§2/"+command+" free [Name] <StartTick>-<EndTick>§b Free during timespan");
+        player.sendMessage("§2/"+command+" locked [Name] <StartTick>-<EndTick>§b Locked for timespan");
+        player.sendMessage("§2/"+command+" cooldown [Name]§b Set the cooldown options");
+        player.sendMessage("§2/"+command+" allow <Amount>§b Allow only x Players per cooldown");
+        player.sendMessage("§2/"+command+" locked [Name] <StartTick>-<EndTick>§b Locked for timespan");
         player.sendMessage("§2/"+command+" collect§b Retrieve items from the target Turnstile chest");
-        player.sendMessage("§2/"+command+" owner (Name) [Player]§b Send money for Turnstile to Player");
-        player.sendMessage("§2/"+command+" bank (Name) [Bank]§b Send money for Turnstile to Bank");
+        player.sendMessage("§2/"+command+" owner [Name] <Player>§b Send money for Turnstile to Player");
+        player.sendMessage("§2/"+command+" bank [Name] <Bank>§b Send money for Turnstile to Bank");
     }
 
     /**
@@ -1215,9 +1259,9 @@ public class TurnstileCommand implements CommandExecutor {
         player.sendMessage("§2Status:§b Whether the Turnstile is open, free, or locked");
         player.sendMessage("§2Turnstile Signs are created using the following format:");
         player.sendMessage("§b    "+command+" link");
-        player.sendMessage("§b  [Turnstile Name]");
-        player.sendMessage("§b[Information type 1]");
-        player.sendMessage("§b[Information type 2]");
+        player.sendMessage("§b  <Turnstile Name>");
+        player.sendMessage("§b<Information type 1>");
+        player.sendMessage("§b<Information type 2>");
     }
 
     /**
