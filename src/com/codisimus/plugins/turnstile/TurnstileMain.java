@@ -49,6 +49,10 @@ public class TurnstileMain extends JavaPlugin {
         //Close all open Turnstiles
         logger.info("Closing all open Turnstiles...");
         for (Turnstile turnstile: TurnstileListener.openTurnstiles) {
+            if (!turnstile.addedToCooldown.isEmpty()) {
+                turnstile.onCooldown.remove(turnstile.addedToCooldown);
+                turnstile.addedToCooldown = "";
+            }
             turnstile.close();
         }
     }
@@ -159,6 +163,9 @@ public class TurnstileMain extends JavaPlugin {
             TurnstileMessages.privateTurnstile = loadValue("PrivateMessage");
             TurnstileMessages.inUse = loadValue("ChestInUseMessage");
             TurnstileMessages.occupied = loadValue("TurnstileOccupiedMessage");
+            TurnstileMessages.noFraud = loadValue("NoFraudMessage");
+            TurnstileMessages.cooldownPrivate = loadValue("CooldownWhenPrivateMessage");
+            TurnstileMessages.cooldown = loadValue("CooldownMessage");
             TurnstileMessages.formatAll();
 
             fis.close();

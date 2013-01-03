@@ -304,6 +304,7 @@ public class Turnstile {
             return true;
         }
 
+        System.out.println(onCooldown);
         if (!onCooldown.isEmpty()) { //Turnstile currently on cooldown
             if (!onCooldown.containsKey(playerName)) { //Player currently on cooldown
                 if (privateWhileOnCooldown) {
@@ -311,7 +312,7 @@ public class Turnstile {
                     String timeRemaining = getTimeRemaining(Long.parseLong(time));
                     if (timeRemaining == null || !timeRemaining.equals("0")) { //Still cooling down
                         if (onCooldown.size() >= amountPerCooldown) { //Full amount is already on cooldown
-                            player.sendMessage(TurnstileMessages.cooldown.replace("<time>", timeRemaining));
+                            player.sendMessage(TurnstileMessages.cooldownPrivate.replace("<time>", timeRemaining));
                             return false;
                         } else {
                             onCooldown.setProperty(playerName, time);
@@ -320,24 +321,22 @@ public class Turnstile {
                     } else {
                         onCooldown.clear();
                         addToCooldown(playerName);
-                        addedToCooldown = playerName;
                     }
                 } else {
                     addToCooldown(playerName);
-                    addedToCooldown = playerName;
                 }
             } else {
-                String time = getTimeRemaining(Long.parseLong(onCooldown.getProperty(playerName)));
-                if (time == null || !time.equals("0")) { //Still cooling down
+                String timeRemaining = getTimeRemaining(Long.parseLong(onCooldown.getProperty(playerName)));
+                System.out.println(timeRemaining);
+                if (timeRemaining == null || !timeRemaining.equals("0")) { //Still cooling down
+                    player.sendMessage(TurnstileMessages.cooldown.replace("<time>", timeRemaining));
                     return true;
                 }
                 onCooldown.remove(playerName);
                 addToCooldown(playerName);
-                addedToCooldown = playerName;
             }
         } else {
             addToCooldown(playerName);
-            addedToCooldown = playerName;
         }
 
         return true;
@@ -407,6 +406,10 @@ public class Turnstile {
     	    public void run() {
                 //Close if the Turnstile is open and a new instance was not started
                 if (open && (temp == instance)) {
+                    if (!addedToCooldown.isEmpty()) {
+                        onCooldown.remove(addedToCooldown);
+                        addedToCooldown = "";
+                    }
                     close();
                 }
     	    }
@@ -465,11 +468,6 @@ public class Turnstile {
             if (isBlock(TurnstileListener.occupiedTrendulas.get(player))) {
                 TurnstileListener.occupiedTrendulas.remove(player);
             }
-        }
-
-        if (!addedToCooldown.isEmpty()) {
-            onCooldown.remove(addedToCooldown);
-            addedToCooldown = "";
         }
     }
 
@@ -676,8 +674,9 @@ public class Turnstile {
         case WOODEN_DOOR: //Fall through
         case IRON_DOOR: //Fall through
         case IRON_DOOR_BLOCK: //Get bottom half
-            if (((Door) block.getState().getData()).isTopHalf())
+            if (((Door) block.getState().getData()).isTopHalf()) {
                 block = block.getRelative(BlockFace.DOWN);
+            }
             break;
         default: break;
         }
@@ -766,6 +765,8 @@ public class Turnstile {
 
     public void addToCooldown(String player) {
         onCooldown.setProperty(player, String.valueOf(getCurrentMillis()));
+        System.out.println(onCooldown);
+        addedToCooldown = player;
     }
 
     public long getCurrentMillis() {

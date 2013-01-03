@@ -1070,7 +1070,7 @@ public class TurnstileCommand implements CommandExecutor {
         String list = "Current Turnstiles:  ";
 
         for (Turnstile turnstile: TurnstileMain.getTurnstiles()) {
-            list = list.concat(turnstile.name + ", ");
+            list += turnstile.name + ", ";
         }
 
         player.sendMessage(list.substring(0, list.length() - 2));
@@ -1132,7 +1132,7 @@ public class TurnstileCommand implements CommandExecutor {
 
         String buttons = "Buttons:  ";
         for (TurnstileButton button: turnstile.buttons) {
-            buttons.concat(button.toString() + ", ");
+            buttons += button.toString() + ", ";
         }
 
         player.sendMessage(buttons.substring(0, buttons.length() - 2));

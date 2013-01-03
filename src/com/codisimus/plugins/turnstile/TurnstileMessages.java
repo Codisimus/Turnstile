@@ -20,6 +20,7 @@ public class TurnstileMessages {
     static String inUse;
     static String occupied;
     static String noFraud;
+    static String cooldownPrivate;
     static String cooldown;
 
     /**
@@ -40,6 +41,7 @@ public class TurnstileMessages {
         inUse = format(inUse);
         occupied = format(occupied);
         noFraud = format(noFraud);
+        cooldownPrivate = format(cooldownPrivate);
         cooldown = format(cooldown);
     }
 
