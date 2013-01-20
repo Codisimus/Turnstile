@@ -111,8 +111,8 @@ public class Turnstile {
         switch (openedFrom) {
         case NORTH: return from.getZ() < z;
         case SOUTH: return from.getZ() > z;
-        case EAST: return from.getX() < x;
-        case WEST: return from.getX() > x;
+        case WEST: return from.getX() < x;
+        case EAST: return from.getX() > x;
         default: return true;
         }
     }

@@ -159,7 +159,7 @@ public class TurnstileListener implements Listener {
      * @param event The PlayerMoveEvent that occurred
      */
     @EventHandler
-    public void onPlayerMove(InventoryCloseEvent event) {
+    public void onInventoryClose(InventoryCloseEvent event) {
         //Return if the Chest opener was not a Player
         HumanEntity chestCloser = (Player)event.getPlayer();
         if (!(chestCloser instanceof Player)) {

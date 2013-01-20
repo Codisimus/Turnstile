@@ -15,13 +15,14 @@ import org.bukkit.event.entity.ProjectileLaunchEvent;
  */
 public class EnderPearlProtection implements Listener {
     private static HashMap<Projectile, Integer> pearls = new HashMap<Projectile, Integer>();
+
     @EventHandler (ignoreCancelled = true)
     public void onEnderPearlThrow(ProjectileLaunchEvent event) {
         final Projectile projectile = event.getEntity();
         if (!(projectile instanceof EnderPearl)) {
             return;
         }
-        
+
         Location location = projectile.getLocation();
         for (Turnstile turnstile: TurnstileMain.getTurnstiles()) {
             if (location.getWorld().getName().equals(turnstile.world)
@@ -32,7 +33,7 @@ public class EnderPearlProtection implements Listener {
                 return;
             }
         }
-        
+
         int id = TurnstileMain.server.getScheduler().scheduleSyncRepeatingTask(TurnstileMain.plugin, new Runnable() {
             @Override
     	    public void run() {
@@ -41,7 +42,7 @@ public class EnderPearlProtection implements Listener {
                     cancelTask(projectile);
                     return;
                 }
-                
+
                 for (Turnstile turnstile: TurnstileMain.getTurnstiles()) {
                     if (location.getWorld().getName().equals(turnstile.world)
                             && Math.abs(location.getBlockX() - turnstile.x) <= 1
@@ -53,7 +54,7 @@ public class EnderPearlProtection implements Listener {
                 }
     	    }
     	}, 1, 1);
-        
+
         pearls.put(projectile, id);
     }
 

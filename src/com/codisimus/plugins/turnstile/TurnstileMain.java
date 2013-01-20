@@ -29,6 +29,7 @@ public class TurnstileMain extends JavaPlugin {
     public static LinkedList<TurnstileSign> itemSigns = new LinkedList<TurnstileSign>();
     public static HashMap<TurnstileSign, Integer> statusSigns = new HashMap<TurnstileSign, Integer>();
     public static boolean citizens;
+    static boolean enderpearlProtection;
     static Permission permission;
     static Server server;
     static Logger logger;
@@ -37,8 +38,8 @@ public class TurnstileMain extends JavaPlugin {
     static boolean defaultOneWay;
     static boolean defaultNoFraud;
     static Plugin plugin;
+    static String dataFolder;
     private static HashMap<String, Turnstile> turnstiles = new HashMap<String, Turnstile>();
-    private static String dataFolder;
     private Properties p;
 
     /**
@@ -80,7 +81,7 @@ public class TurnstileMain extends JavaPlugin {
         }
 
         //Load Config settings
-        loadSettings();
+        TurnstileConfig.load();
 
         //Find Permissions
         RegisteredServiceProvider<Permission> permissionProvider =
@@ -102,7 +103,9 @@ public class TurnstileMain extends JavaPlugin {
 
         //Register Events
         pm.registerEvents(new TurnstileListener(), this);
-        pm.registerEvents(new EnderPearlProtection(), this);
+        if (enderpearlProtection) {
+            pm.registerEvents(new EnderPearlProtection(), this);
+        }
         //Watch for interacting with NPCs if linked to Citizens
         if (citizens) {
             pm.registerEvents(new NPCListener(), this);
@@ -118,77 +121,6 @@ public class TurnstileMain extends JavaPlugin {
         } catch (Exception ex) {
         }
         logger.info("Turnstile " + this.getDescription().getVersion() + " (Build " + version.getProperty("Build") + ") is enabled!");
-    }
-
-    /**
-     * Loads settings from the config.properties file
-     */
-    public void loadSettings() {
-        try {
-            //Copy the file from the jar if it is missing
-            File file = new File(dataFolder+"/config.properties");
-            if (!file.exists()) {
-                this.saveResource("config.properties", true);
-            }
-
-            //Load config file
-            p = new Properties();
-            FileInputStream fis = new FileInputStream(file);
-            p.load(fis);
-
-            Turnstile.debug = Boolean.parseBoolean(loadValue("Debug"));
-
-            cost = Integer.parseInt(loadValue("CostToMakeTurnstile"));
-
-            citizens = Boolean.parseBoolean(loadValue("UseCitizens"));
-
-            defaultOneWay = Boolean.parseBoolean(loadValue("OneWayByDefault"));
-            defaultNoFraud = Boolean.parseBoolean(loadValue("NoFraudByDefault"));
-            defaultTimeOut = Integer.parseInt(loadValue("DefaultAutoCloseTimer"));
-
-            useOpenFreeNode = Boolean.parseBoolean(loadValue("use'openfree'node"));
-            useMakeFreeNode = Boolean.parseBoolean(loadValue("use'makefree'node"));
-
-            //Load custom messages
-            TurnstileMessages.permission = loadValue("PermissionMessage");
-            TurnstileMessages.locked = loadValue("LockedMessage");
-            TurnstileMessages.free = loadValue("FreeMessage");
-            TurnstileMessages.oneWay = loadValue("OneWayMessage");
-            TurnstileMessages.correct = loadValue("CorrectItemMessage");
-            TurnstileMessages.wrong = loadValue("WrongItemMessage");
-            TurnstileMessages.notEnoughMoney = loadValue("NotEnoughMoneyMessage");
-            TurnstileMessages.displayCost = loadValue("DisplayCostMessage");
-            TurnstileMessages.open = loadValue("OpenMessage");
-            TurnstileMessages.balanceCleared = loadValue("BalanceClearedMessage");
-            TurnstileMessages.privateTurnstile = loadValue("PrivateMessage");
-            TurnstileMessages.inUse = loadValue("ChestInUseMessage");
-            TurnstileMessages.occupied = loadValue("TurnstileOccupiedMessage");
-            TurnstileMessages.noFraud = loadValue("NoFraudMessage");
-            TurnstileMessages.cooldownPrivate = loadValue("CooldownWhenPrivateMessage");
-            TurnstileMessages.cooldown = loadValue("CooldownMessage");
-            TurnstileMessages.formatAll();
-
-            fis.close();
-        } catch (Exception missingProp) {
-            logger.severe("Failed to load Turnstile "+this.getDescription().getVersion());
-            missingProp.printStackTrace();
-        }
-    }
-
-    /**
-     * Loads the given key and prints an error if the key is missing
-     *
-     * @param key The key to be loaded
-     * @return The String value of the loaded key
-     */
-    private String loadValue(String key) {
-        //Print an error if the key is not found
-        if (!p.containsKey(key)) {
-            logger.severe("Missing value for " + key + " in config file");
-            logger.severe("Please regenerate config file");
-        }
-
-        return p.getProperty(key);
     }
 
     /**
