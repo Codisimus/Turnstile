@@ -1,6 +1,6 @@
 name: Turnstile
 main: com.codisimus.plugins.turnstile.TurnstileMain
-version: 2.6.2
+version: 2.7.0
 author: Codisimus
 website: www.codisimus.com
 description: Charge players money/items to enter an area
