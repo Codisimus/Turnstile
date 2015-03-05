@@ -1,19 +1,31 @@
 package com.codisimus.plugins.turnstile;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.FilenameFilter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Properties;
+import java.util.logging.Level;
 import java.util.logging.Logger;
-import net.milkbowl.vault.economy.Economy;
-import net.milkbowl.vault.permission.Permission;
-import org.bukkit.Server;
+import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
 import org.bukkit.block.Sign;
-import org.bukkit.entity.Player;
+import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.DoubleChestInventory;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.plugin.PluginManager;
-import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * Loads Plugin and manages Data/Permissions
@@ -21,26 +33,22 @@ import org.bukkit.plugin.java.JavaPlugin;
  * @author Codisimus
  */
 public class TurnstileMain extends JavaPlugin {
-    public static int cost;
-    public static PluginManager pm;
-    public static boolean useMakeFreeNode;
-    public static LinkedList<TurnstileSign> counterSigns = new LinkedList<TurnstileSign>();
-    public static LinkedList<TurnstileSign> moneySigns = new LinkedList<TurnstileSign>();
-    public static LinkedList<TurnstileSign> itemSigns = new LinkedList<TurnstileSign>();
-    public static HashMap<TurnstileSign, Integer> statusSigns = new HashMap<TurnstileSign, Integer>();
-    public static boolean citizens;
-    static boolean enderpearlProtection;
-    static Permission permission;
-    static Server server;
-    static Logger logger;
-    static int defaultTimeOut;
-    static boolean useOpenFreeNode;
-    static boolean defaultOneWay;
-    static boolean defaultNoFraud;
-    static Plugin plugin;
-    static String dataFolder;
-    private static HashMap<String, Turnstile> turnstiles = new HashMap<String, Turnstile>();
-    private Properties p;
+    public static final String YAML_EXTENSION = ".yml";
+    public static final FilenameFilter YAML_FILTER = new FilenameFilter() {
+        @Override
+        public boolean accept(File dir, String name) {
+            return name.toLowerCase().endsWith(YAML_EXTENSION);
+        }
+    };
+    public static ArrayList<TurnstileSign> counterSigns = new ArrayList<>();
+    public static ArrayList<TurnstileSign> moneySigns = new ArrayList<>();
+    public static ArrayList<TurnstileSign> itemSigns = new ArrayList<>();
+    public static final HashMap<TurnstileSign, BukkitTask> statusSigns = new HashMap<>();
+    public static Logger logger;
+    public static Plugin plugin;
+    public static String dataFolder;
+    public static CommandHandler handler;
+    private static final HashMap<String, Turnstile> turnstiles = new HashMap<>();
 
     /**
      * Closes all open Turnstiles when this Plugin is disabled
@@ -63,9 +71,7 @@ public class TurnstileMain extends JavaPlugin {
      */
     @Override
     public void onEnable () {
-        server = getServer();
         logger = getLogger();
-        pm = server.getPluginManager();
         plugin = this;
 
         File dir = this.getDataFolder();
@@ -75,512 +81,112 @@ public class TurnstileMain extends JavaPlugin {
 
         dataFolder = dir.getPath();
 
-        dir = new File(dataFolder+"/Turnstiles");
+        dir = new File(dataFolder, "Turnstiles");
         if (!dir.isDirectory()) {
             dir.mkdir();
         }
 
-        //Load Config settings
-        TurnstileConfig.load();
+        loadData();
 
-        //Find Permissions
-        RegisteredServiceProvider<Permission> permissionProvider =
-                getServer().getServicesManager().getRegistration(net.milkbowl.vault.permission.Permission.class);
-        if (permissionProvider != null) {
-            permission = permissionProvider.getProvider();
+        /* Register Events */
+        Bukkit.getPluginManager().registerEvents(new TurnstileListener(), this);
+        if (TurnstileConfig.enderpearlProtection) {
+            Bukkit.getPluginManager().registerEvents(new EnderPearlProtection(), this);
+        }
+        if (TurnstileConfig.citizens && Bukkit.getPluginManager().getPlugin("Citizens") != null) {
+            //Watch for interacting with NPCs if linked to Citizens
+            Bukkit.getPluginManager().registerEvents(new NPCListener(), this);
         }
 
-        //Find Economy
-        RegisteredServiceProvider<Economy> economyProvider =
-                getServer().getServicesManager().getRegistration(net.milkbowl.vault.economy.Economy.class);
-        if (economyProvider != null) {
-            Econ.economy = economyProvider.getProvider();
-        }
-
-        //Load Data
-        loadTurnstiles();
-        loadSigns();
-
-        //Register Events
-        pm.registerEvents(new TurnstileListener(), this);
-        if (enderpearlProtection) {
-            pm.registerEvents(new EnderPearlProtection(), this);
-        }
-        //Watch for interacting with NPCs if linked to Citizens
-        if (citizens) {
-            pm.registerEvents(new NPCListener(), this);
-        }
-
-        //Register the command found in the plugin.yml
-        TurnstileCommand.command = (String)this.getDescription().getCommands().keySet().toArray()[0];
-        getCommand(TurnstileCommand.command).setExecutor(new TurnstileCommand());
+        /* Register the command found in the plugin.yml */
+        String command = (String) getDescription().getCommands().keySet().toArray()[0];
+        handler = new CommandHandler(this, command);
 
         Properties version = new Properties();
         try {
             version.load(this.getResource("version.properties"));
         } catch (Exception ex) {
+            logger.warning("version.properties file not found within jar");
         }
-        logger.info("Turnstile " + this.getDescription().getVersion() + " (Build " + version.getProperty("Build") + ") is enabled!");
+        logger.info("Turnstile " + this.getDescription().getVersion() + " (Build "
+                    + version.getProperty("Build") + ") is enabled!");
     }
 
     /**
-     * Returns boolean value of whether the given player has the specific permission
-     *
-     * @param player The Player who is being checked for permission
-     * @param type The String of the permission, ex. admin
-     * @return true if the given player has the specific permission
+     * Reloads the config from the config.yml file.
+     * Loads values from the newly loaded config.
+     * This method is automatically called when the plugin is enabled
      */
-    public static boolean hasPermission(Player player, String type) {
-        return permission.has(player, "turnstile."+type);
+    @Override
+    public void reloadConfig() {
+        //Save the config file if it does not already exist
+        saveDefaultConfig();
+
+        //Reload the config as this method would normally do if not overriden
+        super.reloadConfig();
+
+        //Load values from the config now that it has been reloaded
+        TurnstileConfig.load();
+
+        Econ.setupEconomy();
+    }
+
+    public static void loadData() {
+        loadTurnstiles();
+        loadSigns();
     }
 
     /**
-     * Reads save files to load Turnstile data
+     * Loads each Turnstile
      */
     public static void loadTurnstiles() {
-        File[] files = plugin.getDataFolder().listFiles();
+        turnstiles.clear();
 
-        //Organize files
-        if (files != null) {
-            for (File file: files) {
+        //Load each YAML file in the Turnstiles folder
+        File[] files = new File(dataFolder, "Turnstiles").listFiles(YAML_FILTER);
+        for (File file : files) {
+            try {
                 String name = file.getName();
+                name = name.substring(0, name.length() - 4);
+                YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
 
-                if (name.endsWith("Signs.dat")) {
-                    File dest = new File(dataFolder+"/Signs");
-                    dest.mkdir();
-                    dest = new File(dataFolder+"/Signs/"+name);
-                    file.renameTo(dest);
-                } else if (name.endsWith(".dat")) {
-                    File dest = new File(dataFolder+"/Turnstiles");
-                    dest.mkdir();
-                    dest = new File(dataFolder+"/Turnstiles/"+name.substring(0, name.length() - 4)+".properties");
-                    file.renameTo(dest);
+                //Ensure the Turnstile name matches the file name
+                Turnstile turnstile = (Turnstile) config.get(config.contains(name)
+                                                             ? name
+                                                             : config.getKeys(false).iterator().next());
+                if (!turnstile.name.equals(name)) {
+                    turnstile.name = name;
+                    turnstile.save();
                 }
+
+                turnstile.loadCooldownTimes();
+                turnstiles.put(name, turnstile);
+            } catch (Exception ex) {
+                logger.log(Level.SEVERE, "Failed to load " + file.getName(), ex);
             }
         }
-
-        File dir = new File(dataFolder+"/Turnstiles");
-        if (!dir.isDirectory()) {
-            dir.mkdir();
-        }
-        files = new File(dataFolder+"/Turnstiles/").listFiles();
-        FileInputStream fis = null;
-
-        for (File file: files) {
-            String name = file.getName();
-            if (name.endsWith(".properties")) {
-                try {
-                    //Load the Properties file for reading
-                    Properties p = new Properties();
-                    fis = new FileInputStream(file);
-                    p.load(fis);
-
-                    //Construct a new Turnstile using the file name, Owner name, and Location data
-                    String owner = p.getProperty("Owner");
-                    String[] location = p.getProperty("Location").split("'");
-                    String worldName = location[0];
-                    int x = Integer.parseInt(location[1]);
-                    int y = Integer.parseInt(location[2]);
-                    int z = Integer.parseInt(location[3]);
-                    Turnstile turnstile = new Turnstile(name.substring(0, name.length() - 11), owner, worldName, x, y, z);
-
-                    turnstile.price = Double.parseDouble(p.getProperty("Price"));
-                    turnstile.moneyEarned = Double.parseDouble(p.getProperty("MoneyEarned"));
-
-                    if (p.containsKey("Items")) {
-                        turnstile.setItems(p.getProperty("Items"));
-                    } else {
-                        turnstile.items.add(new Item(Integer.parseInt(p.getProperty("ItemID")),
-                                Short.parseShort(p.getProperty("ItemDurability")), Integer.parseInt(p.getProperty("ItemAmount"))));
-                    }
-
-                    turnstile.itemsEarned = Integer.parseInt(p.getProperty("ItemsEarned"));
-
-                    turnstile.oneWay = Boolean.parseBoolean(p.getProperty("OneWay"));
-                    turnstile.noFraud = Boolean.parseBoolean(p.getProperty("NoFraud"));
-                    turnstile.timeOut = Integer.parseInt(p.getProperty("AutoCloseTimer"));
-
-                    String[] time = p.getProperty("FreeTimeRange").split("-");
-                    turnstile.freeStart = Integer.parseInt(time[0]);
-                    turnstile.freeEnd = Integer.parseInt(time[1]);
-
-                    time = p.getProperty("LockedTimeRange").split("-");
-                    turnstile.lockedStart = Integer.parseInt(time[0]);
-                    turnstile.lockedEnd = Integer.parseInt(time[1]);
-
-                    if (p.containsKey("CooldownTime")) {
-                        String[] resetTime = p.getProperty("CooldownTime").split("'");
-                        turnstile.days = Integer.parseInt(resetTime[0]);
-                        turnstile.hours = Integer.parseInt(resetTime[1]);
-                        turnstile.minutes = Integer.parseInt(resetTime[2]);
-                        turnstile.seconds = Integer.parseInt(resetTime[3]);
-
-                        turnstile.privateWhileOnCooldown = Boolean.parseBoolean(p.getProperty("RoundDownTime"));
-                        turnstile.privateWhileOnCooldown = Boolean.parseBoolean(p.getProperty("PrivateWhileOnCooldown"));
-                        turnstile.amountPerCooldown = Integer.parseInt(p.getProperty("PlayersAllowedInPrivateCooldown"));
-                    }
-
-                    String access = p.getProperty("Access");
-                    if (!access.equals("public")) {
-                        turnstile.access = new LinkedList<String>();
-                        if (!access.equals("private")) {
-                            turnstile.access.addAll(Arrays.asList(access.split(", ")));
-                        }
-                    }
-
-                    String line = p.getProperty("Buttons");
-                    if (!line.isEmpty()) {
-                        String[] buttons = line.split(", ");
-                        for (String button: buttons) {
-                            String[] data = button.split("'");
-                            x = Integer.parseInt(data[1]);
-                            y = Integer.parseInt(data[2]);
-                            z = Integer.parseInt(data[3]);
-                            int type = Integer.parseInt(data[4]);
-
-                            turnstile.buttons.add(new TurnstileButton(data[0], x, y, z, type));
-                        }
-                    }
-
-                    turnstiles.put(turnstile.name, turnstile);
-
-                    fis.close();
-
-                    file = new File(dataFolder + "/Turnstiles/"
-                                    + turnstile.name + ".cooldowntimes");
-                    if (file.exists()) {
-                        fis = new FileInputStream(file);
-                        turnstile.onCooldown.load(fis);
-                    } else {
-                        turnstile.save();
-                    }
-                } catch (Exception loadFailed) {
-                    logger.severe("Failed to load " + name);
-                    loadFailed.printStackTrace();
-                } finally {
-                    try {
-                        fis.close();
-                    } catch (Exception e) {
-                    }
-                }
-            }
-        }
-
-        if (!turnstiles.isEmpty()) {
-            return;
-        }
-
-        loadOld();
     }
 
     /**
-     * Reads outdated save files to load Turnstile data
+     * Reads save file to load Sign data
      */
-    public static void loadOld() {
+    public static void loadSigns() {
         try {
-            File file = new File(dataFolder+"/turnstile.save");
+            File file = new File(dataFolder, "signs.yml");
             if (!file.exists()) {
                 return;
             }
 
-            logger.info("Loading outdated save files");
-
-            BufferedReader bReader = new BufferedReader(new FileReader(file));
-            String line;
-            while ((line = bReader.readLine()) != null) {
-                String[] split = line.split(";");
-                if (split.length == 15) {
-                    if (split[11].endsWith("~NETHER")) {
-                        split[11].replace("~NETHER", "");
-                    }
-
-                    World world = server.getWorld(split[11]);
-                    int x = Integer.parseInt(split[12]);
-                    int y = Integer.parseInt(split[13]);
-                    int z = Integer.parseInt(split[14]);
-                    Turnstile turnstile = new Turnstile(split[0], split[9], split[11], x, y, z);
-
-                    turnstile.price = Double.parseDouble(split[1]);
-
-                    int id;
-                    short durability = -1;
-                    if (split[3].contains(".")) {
-                        int index = split[3].indexOf('.');
-                        id = Integer.parseInt(split[3].substring(0, index));
-                        durability = Short.parseShort(split[3].substring(index + 1));
-                    } else
-                        id = Integer.parseInt(split[3]);
-                    turnstile.items.add(new Item(id, durability, Integer.parseInt(split[4])));
-
-                    if (id != 0) {
-                        turnstile.itemsEarned = Integer.parseInt(split[5]);
-                    } else {
-                        turnstile.moneyEarned = Double.parseDouble(split[5]);
-                    }
-
-                    turnstile.lockedStart = Long.parseLong(split[5]);
-                    turnstile.lockedEnd = Long.parseLong(split[6]);
-                    turnstile.freeStart = Long.parseLong(split[7]);
-                    turnstile.freeEnd = Long.parseLong(split[8]);
-
-                    if (!split[10].equals("public")) {
-                        if (split[10].equals("private")) {
-                            turnstile.access = new LinkedList<String>();
-                        } else {
-                            turnstile.access = (LinkedList<String>) Arrays.asList(split[10].split(", "));
-                        }
-                    }
-
-                    line = bReader.readLine();
-                    if (!line.trim().isEmpty()) {
-                        String[] buttons = line.split(";");
-                        for (int i = 0 ; i < buttons.length; ++i) {
-                            String[] coords = buttons[i].split(":");
-                            x = Integer.parseInt(coords[0]);
-                            y = Integer.parseInt(coords[1]);
-                            z = Integer.parseInt(coords[2]);
-                            turnstile.buttons.add(new TurnstileButton(split[11], x, y, z, world.getBlockTypeIdAt(x, y, z)));
-                        }
-                    }
-
-                    turnstiles.put(turnstile.name, turnstile);
-                } else {
-                    World world = server.getWorld(split[12]);
-                    int x = Integer.parseInt(split[13]);
-                    int y = Integer.parseInt(split[14]);
-                    int z = Integer.parseInt(split[15]);
-                    Turnstile turnstile = new Turnstile(split[0], split[10], split[12], x, y, z);
-
-                    turnstile.price = Double.parseDouble(split[1]);
-                    int id = Integer.parseInt(split[2]);
-                    turnstile.items.add(new Item(id, Short.parseShort(split[3]), Integer.parseInt(split[4])));
-
-                    if (id != 0) {
-                        turnstile.itemsEarned = (int)Double.parseDouble(split[5]);
-                    } else {
-                        turnstile.moneyEarned = Double.parseDouble(split[5]);
-                    }
-
-                    turnstile.lockedStart = Long.parseLong(split[6]);
-                    turnstile.lockedEnd = Long.parseLong(split[7]);
-                    turnstile.freeStart = Long.parseLong(split[8]);
-                    turnstile.freeEnd = Long.parseLong(split[9]);
-
-                    if (!split[11].equalsIgnoreCase("public")) {
-                        if (split[11].equalsIgnoreCase("private")) {
-                            turnstile.access = new LinkedList<String>();
-                        } else {
-                            turnstile.access = (LinkedList<String>) Arrays.asList(split[11].split(", "));
-                        }
-                    }
-
-                    line = bReader.readLine();
-                    if (!line.trim().isEmpty()) {
-                        String[] buttons = line.split(";");
-                        for (int i = 0 ; i < buttons.length; ++i) {
-                            String[] coords = buttons[i].split(":");
-                            x = Integer.parseInt(coords[0]);
-                            y = Integer.parseInt(coords[1]);
-                            z = Integer.parseInt(coords[2]);
-                            turnstile.buttons.add(new TurnstileButton(split[12], x, y, z, world.getBlockTypeIdAt(x, y, z)));
-                        }
-                    }
-
-                    turnstiles.put(turnstile.name, turnstile);
-                    turnstile.save();
-                }
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            counterSigns = (ArrayList<TurnstileSign>) config.get("CounterSigns");
+            moneySigns = (ArrayList<TurnstileSign>) config.get("MoneySigns");
+            itemSigns = (ArrayList<TurnstileSign>) config.get("ItemSigns");
+            for (TurnstileSign sign : (ArrayList<TurnstileSign>) config.get("StatusSigns")) {
+                statusSigns.put(sign, sign.tickListenerTask());
             }
-
-            bReader.close();
-        } catch (Exception loadFailed) {
-            logger.severe("Loading data from old save file has failed");
-            loadFailed.printStackTrace();
-        }
-    }
-
-    /**
-     * Reads save files to load Sign data
-     */
-    public static void loadSigns() {
-        File dir = new File(dataFolder+"/Signs");
-        if (!dir.isDirectory()) {
-            dir.mkdirs();
-        }
-
-        for (File file: dir.listFiles()) {
-            try {
-                String fileName = file.getName();
-
-                if (fileName.endsWith("StatusSigns.dat")) {
-                    BufferedReader bReader = new BufferedReader(new FileReader(file));
-
-                    String line = bReader.readLine();
-                    while (line != null) {
-                        try {
-                            World world = server.getWorld(fileName.substring(0, fileName.length() - 15));
-
-                            String[] split = line.split("'");
-
-                            Turnstile turnstile = findTurnstile(split[0]);
-
-                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
-                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
-
-                            switch (block.getType()) {
-                            case SIGN: break;
-                            case SIGN_POST: break;
-                            case WALL_SIGN: break;
-                            default: continue;
-                            }
-
-                            Sign sign = (Sign)block.getState();
-
-                            int lineNumber = Integer.parseInt(split[4]);
-
-                            if (turnstile != null) {
-                                TurnstileSign tsSign = new TurnstileSign(sign, turnstile, lineNumber);
-                                statusSigns.put(tsSign, tsSign.tickListener());
-                            }
-                        } catch (Exception loadFailed) {
-                            logger.severe("Failed to load line:");
-                            logger.severe(line);
-                            logger.severe("in file:");
-                            logger.severe(file.getName());
-                            loadFailed.printStackTrace();
-                        } finally {
-                            line = bReader.readLine();
-                        }
-                    }
-
-                    bReader.close();
-                } else if (fileName.endsWith("CounterSigns.dat")) {
-                    BufferedReader bReader = new BufferedReader(new FileReader(file));
-
-                    String line = bReader.readLine();
-                    while (line != null) {
-                        try {
-                            World world = server.getWorld(fileName.substring(0, fileName.length() - 16));
-
-                            String[] split = line.split("'");
-
-                            Turnstile turnstile = findTurnstile(split[0]);
-
-                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
-                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
-
-                            switch (block.getType()) {
-                            case SIGN: break;
-                            case SIGN_POST: break;
-                            case WALL_SIGN: break;
-                            default: continue;
-                            }
-
-                            Sign sign = (Sign)block.getState();
-
-                            int lineNumber = Integer.parseInt(split[4]);
-
-                            if (turnstile != null) {
-                                counterSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
-                            }
-                        } catch (Exception loadFailed) {
-                            logger.severe("Failed to load line:");
-                            logger.severe(line);
-                            logger.severe("in file:");
-                            logger.severe(file.getName());
-                            loadFailed.printStackTrace();
-                        } finally {
-                            line = bReader.readLine();
-                        }
-                    }
-
-                    bReader.close();
-                } else if (fileName.endsWith("MoneySigns.dat")) {
-                    BufferedReader bReader = new BufferedReader(new FileReader(file));
-
-                    String line = bReader.readLine();
-                    while (line != null) {
-                        try {
-                            World world = server.getWorld(fileName.substring(0, fileName.length() - 14));
-
-                            String[] split = line.split("'");
-
-                            Turnstile turnstile = findTurnstile(split[0]);
-
-                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
-                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
-
-                            switch (block.getType()) {
-                            case SIGN: break;
-                            case SIGN_POST: break;
-                            case WALL_SIGN: break;
-                            default: continue;
-                            }
-
-                            Sign sign = (Sign)block.getState();
-
-                            int lineNumber = Integer.parseInt(split[4]);
-
-                            if (turnstile != null) {
-                                moneySigns.add(new TurnstileSign(sign, turnstile, lineNumber));
-                            }
-                        } catch (Exception loadFailed) {
-                            logger.severe("Failed to load line:");
-                            logger.severe(line);
-                            logger.severe("in file:");
-                            logger.severe(file.getName());
-                            loadFailed.printStackTrace();
-                        } finally {
-                            line = bReader.readLine();
-                        }
-                    }
-
-                    bReader.close();
-                } else if (fileName.endsWith("ItemSigns.dat")) {
-                    BufferedReader bReader = new BufferedReader(new FileReader(file));
-
-                    String line = bReader.readLine();
-                    while (line != null) {
-                        try {
-                            World world = server.getWorld(fileName.substring(0, fileName.length() - 13));
-
-                            String[] split = line.split("'");
-
-                            Turnstile turnstile = findTurnstile(split[0]);
-
-                            Block block = world.getBlockAt(Integer.parseInt(split[1]),
-                                    Integer.parseInt(split[2]), Integer.parseInt(split[3]));
-
-                            switch (block.getType()) {
-                            case SIGN: break;
-                            case SIGN_POST: break;
-                            case WALL_SIGN: break;
-                            default: continue;
-                            }
-
-                            Sign sign = (Sign)block.getState();
-
-                            int lineNumber = Integer.parseInt(split[4]);
-
-                            if (turnstile != null) {
-                                itemSigns.add(new TurnstileSign(sign, turnstile, lineNumber));
-                            }
-                        } catch (Exception loadFailed) {
-                            logger.severe("Failed to load line:");
-                            logger.severe(line);
-                            logger.severe("in file:");
-                            logger.severe(file.getName());
-                            loadFailed.printStackTrace();
-                        } finally {
-                            line = bReader.readLine();
-                        }
-                    }
-
-                    bReader.close();
-                }
-            } catch (Exception ex) {
-                logger.severe("Unexpected error occured!");
-                ex.printStackTrace();
-            }
+        } catch (Exception ex) {
+            logger.severe("Unexpected error occured!");
+            ex.printStackTrace();
         }
     }
 
@@ -590,69 +196,9 @@ public class TurnstileMain extends JavaPlugin {
      */
     public static void saveAll() {
         for (Turnstile turnstile: turnstiles.values()) {
-            saveTurnstile(turnstile);
+            turnstile.saveAll();
         }
         saveSigns();
-    }
-
-    /**
-     * Writes the given Turnstile to its save file
-     * If the file already exists, it is overwritten
-     *
-     * @param turnstile The given Turnstile
-     */
-    static void saveTurnstile(Turnstile turnstile) {
-        try {
-            Properties p = new Properties();
-
-            p.setProperty("Owner", turnstile.owner);
-            p.setProperty("Location", turnstile.world+"'"+turnstile.x+"'"+turnstile.y+"'"+turnstile.z);
-            p.setProperty("Price", String.valueOf(turnstile.price));
-            p.setProperty("MoneyEarned", String.valueOf(turnstile.moneyEarned));
-            p.setProperty("Items", turnstile.itemsToString());
-            p.setProperty("ItemsEarned", String.valueOf(turnstile.itemsEarned));
-            p.setProperty("OneWay", String.valueOf(turnstile.oneWay));
-            p.setProperty("NoFraud", String.valueOf(turnstile.noFraud));
-            p.setProperty("AutoCloseTimer", String.valueOf(turnstile.timeOut));
-            p.setProperty("FreeTimeRange", turnstile.freeStart+"-"+turnstile.freeEnd);
-            p.setProperty("LockedTimeRange", turnstile.lockedStart+"-"+turnstile.lockedEnd);
-            p.setProperty("CooldownTime", turnstile.days+"'" + turnstile.hours + "'"
-                            + turnstile.minutes + "'" + turnstile.seconds);
-            p.setProperty("RoundDownTime", String.valueOf(turnstile.roundDown));
-            p.setProperty("PrivateWhileOnCooldown", String.valueOf(turnstile.privateWhileOnCooldown));
-            p.setProperty("PlayersAllowedInPrivateCooldown", String.valueOf(turnstile.amountPerCooldown));
-
-            if (turnstile.access == null) {
-                p.setProperty("Access", "public");
-            } else if (turnstile.access.isEmpty()) {
-                p.setProperty("Access", "private");
-            } else {
-                String access = turnstile.access.toString();
-                p.setProperty("Access", access.substring(1, access.length() - 1));
-            }
-
-            if (turnstile.buttons.isEmpty()) {
-                p.setProperty("Buttons", "");
-            } else {
-                String buttons = "";
-                for (TurnstileButton button: turnstile.buttons) {
-                    buttons = buttons.concat(", "+button.toString());
-                }
-                p.setProperty("Buttons", buttons.substring(2));
-            }
-
-            //Write the Turnstile Properties to file
-            FileOutputStream fos = new FileOutputStream(dataFolder+"/Turnstiles/"+turnstile.name+".properties");
-            p.store(fos, null);
-            fos.close();
-
-            fos = new FileOutputStream(dataFolder+"/Turnstiles/"+turnstile.name+".cooldowntimes");
-            turnstile.onCooldown.store(fos, null);
-            fos.close();
-        } catch (Exception saveFailed) {
-            logger.severe("Save Failed!");
-            saveFailed.printStackTrace();
-        }
     }
 
     /**
@@ -661,87 +207,12 @@ public class TurnstileMain extends JavaPlugin {
      */
     public static void saveSigns() {
         try {
-            for (World world: server.getWorlds()) {
-                LinkedList<TurnstileSign> tempList = new LinkedList<TurnstileSign>();
-                for (TurnstileSign sign: statusSigns.keySet()) {
-                    if (sign.sign.getWorld().equals(world)) {
-                        tempList.add(sign);
-                    }
-                }
-
-                if (!tempList.isEmpty()) {
-                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            dataFolder + "/Signs/" + world.getName()
-                            + "StatusSigns.dat"));
-
-                    for (TurnstileSign sign: tempList) {
-                        bWriter.write(sign.toString());
-                        bWriter.newLine();
-                    }
-
-                    bWriter.close();
-                }
-
-                tempList.clear();
-                for (TurnstileSign sign: counterSigns) {
-                    if (sign.sign.getWorld().equals(world)) {
-                        tempList.add(sign);
-                    }
-                }
-
-                if (!tempList.isEmpty()) {
-                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            dataFolder + "/Signs/" + world.getName()
-                            + "CounterSigns.dat"));
-
-                    for (TurnstileSign sign: tempList) {
-                        bWriter.write(sign.toString());
-                        bWriter.newLine();
-                    }
-
-                    bWriter.close();
-                }
-
-                tempList.clear();
-                for (TurnstileSign sign: moneySigns) {
-                    if (sign.sign.getWorld().equals(world)) {
-                        tempList.add(sign);
-                    }
-                }
-
-                if (!tempList.isEmpty()) {
-                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            dataFolder + "/Signs/" + world.getName()
-                            + "MoneySigns.dat"));
-
-                    for (TurnstileSign sign: tempList) {
-                        bWriter.write(sign.toString());
-                        bWriter.newLine();
-                    }
-
-                    bWriter.close();
-                }
-
-                tempList.clear();
-                for (TurnstileSign sign: itemSigns) {
-                    if (sign.sign.getWorld().equals(world)) {
-                        tempList.add(sign);
-                    }
-                }
-
-                if (!tempList.isEmpty()) {
-                    BufferedWriter bWriter = new BufferedWriter(new FileWriter(
-                            dataFolder + "/Signs/" + world.getName()
-                            + "ItemSigns.dat"));
-
-                    for (TurnstileSign sign: tempList) {
-                        bWriter.write(sign.toString());
-                        bWriter.newLine();
-                    }
-
-                    bWriter.close();
-                }
-            }
+            YamlConfiguration config = new YamlConfiguration();
+            config.set("CounterSigns", counterSigns);
+            config.set("MoneySigns", moneySigns);
+            config.set("ItemSigns", itemSigns);
+            config.set("StatusSigns", statusSigns.keySet());
+            config.save(new File(TurnstileMain.dataFolder, "signs.yml"));
         } catch (Exception saveFailed) {
             logger.severe("Save Failed!");
             saveFailed.printStackTrace();
@@ -764,7 +235,7 @@ public class TurnstileMain extends JavaPlugin {
      */
     public static void addTurnstile(Turnstile turnstile) {
         turnstiles.put(turnstile.name, turnstile);
-        turnstile.save();
+        turnstile.saveAll();
     }
 
     /**
@@ -810,8 +281,10 @@ public class TurnstileMain extends JavaPlugin {
             TurnstileSign sign = itr.next();
             if (sign.turnstile.equals(turnstile)) {
                 sign.clear();
-                int id = statusSigns.get(sign);
-                server.getScheduler().cancelTask(id);
+                BukkitTask task = statusSigns.get(sign);
+                if (task != null) {
+                    task.cancel();
+                }
                 statusSigns.remove(sign);
             }
         }
@@ -832,15 +305,16 @@ public class TurnstileMain extends JavaPlugin {
     /**
      * Reloads Turnstile data
      *
-     * @param player The Player reloading the data
+     * @param sender The CommandSender reloading the data
      */
-    public static void rl(Player player) {
+    public static void rl(CommandSender sender) {
+        plugin.reloadConfig();
         turnstiles.clear();
         loadTurnstiles();
 
         logger.info("reloaded");
-        if (player != null) {
-            player.sendMessage("Turnstile reloaded");
+        if (sender != null) {
+            sender.sendMessage("Turnstile reloaded");
         }
     }
 
@@ -849,34 +323,25 @@ public class TurnstileMain extends JavaPlugin {
      * If this is a not a Chest then null is returned
      * If this is a single Chest then the normal Chest Block is returned
      *
+     * @param block The Chest Block
      * @return The other half of the Double Chest
      */
-    public static Block getOtherHalf(Block block) {
-        if (block.getTypeId() != 54) {
-            return null;
+    public static Block getOtherSide(Block block) {
+        switch (block.getType()) {
+        case TRAPPED_CHEST:
+        case CHEST:
+            Chest chest = (Chest) block.getState();
+            Inventory inventory = chest.getInventory();
+            if (inventory instanceof DoubleChestInventory) {
+                Chest leftChest = (Chest) ((DoubleChestInventory) inventory).getLeftSide().getHolder();
+                Chest rightChest = (Chest) ((DoubleChestInventory) inventory).getRightSide().getHolder();
+                
+                block = (chest == leftChest ? rightChest : leftChest).getBlock();
+            }
+            break;
+        default:
+            break;
         }
-
-        Block neighbor = block.getRelative(0, 0, 1);
-        if (neighbor.getTypeId() == 54) {
-            return neighbor;
-        }
-
-        neighbor = block.getRelative(1, 0, 0);
-        if (neighbor.getTypeId() == 54) {
-            return neighbor;
-        }
-
-        neighbor = block.getRelative(0, 0, -1);
-        if (neighbor.getTypeId() == 54) {
-            return neighbor;
-        }
-
-        neighbor = block.getRelative(-1, 0, 0);
-        if (neighbor.getTypeId() == 54) {
-            return neighbor;
-        }
-
-        //Return the single Block
         return block;
     }
 

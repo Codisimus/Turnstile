@@ -1,9 +1,11 @@
 package com.codisimus.plugins.turnstile;
 
 import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.RegisteredServiceProvider;
 
 /**
- * Manages payment/rewards of using Warps
+ * Manages payment of using Turnstiles
  *
  * @author Codisimus
  */
@@ -83,5 +85,23 @@ public class Econ {
      */
     public static String format(double amount) {
         return economy.format(amount).replace(".00", "");
+    }
+
+    /**
+     * Retrieves the registered Economy plugin
+     *
+     * @return true if an Economy plugin has been found
+     */
+    public static boolean setupEconomy() {
+        //Return if Vault is not enabled
+        if (Bukkit.getPluginManager().getPlugin("Vault") == null) {
+            return false;
+        }
+        RegisteredServiceProvider rsp = Bukkit.getServicesManager().getRegistration(Economy.class);
+        if (rsp == null) {
+            return false;
+        }
+        economy = (Economy) rsp.getProvider();
+        return economy != null;
     }
 }

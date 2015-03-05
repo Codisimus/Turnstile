@@ -1,27 +1,41 @@
 package com.codisimus.plugins.turnstile;
 
-import java.util.Calendar;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Properties;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.*;
+import java.util.logging.Level;
+import org.apache.commons.lang.WordUtils;
 import org.apache.commons.lang.time.DateUtils;
-import org.bukkit.World;
+import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
-import org.bukkit.block.BlockState;
-import org.bukkit.enchantments.Enchantment;
+import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.serialization.ConfigurationSerializable;
+import org.bukkit.configuration.serialization.ConfigurationSerialization;
+import org.bukkit.configuration.serialization.SerializableAs;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.material.Button;
-import org.bukkit.material.Door;
+import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  * A Turnstile is a fence or door used as a gate.
  *
  * @author Codisimus
  */
-public class Turnstile {
+@SerializableAs("Turnstile")
+public class Turnstile implements ConfigurationSerializable {
+    static {
+        ConfigurationSerialization.registerClass(Turnstile.class, "Turnstile");
+    }
+    static String current;
+    static String last;
     static boolean debug;
 
     public String name;
@@ -35,17 +49,19 @@ public class Turnstile {
     public double price = 0;
     public double moneyEarned = 0;
 
-    public LinkedList<Item> items = new LinkedList<Item>();
+    public ArrayList<ItemStack> items = new ArrayList<>();
     public int itemsEarned = 0;
 
-    public boolean oneWay = TurnstileMain.defaultOneWay;
-    public boolean noFraud = TurnstileMain.defaultNoFraud;
-    public int timeOut = TurnstileMain.defaultTimeOut;
+    public boolean oneWay = TurnstileConfig.defaultOneWay;
+    public boolean noFraud = TurnstileConfig.defaultNoFraud;
+    public int timeOut = TurnstileConfig.defaultTimeOut;
 
-    public long freeStart = 0;
-    public long freeEnd = 0;
-    public long lockedStart = 0;
-    public long lockedEnd = 0;
+    public int freeStart = 0;
+    public int freeEnd = 0;
+    public int lockedStart = 0;
+    public int lockedEnd = 0;
+
+    public String access = "public";
 
     /* Cooldown time (will never cooldown if any are negative) */
     public int days;
@@ -54,43 +70,23 @@ public class Turnstile {
     public int seconds;
     public boolean roundDown = false;
 
-    public Properties onCooldown = new Properties();
+    public final Properties onCooldown = new Properties();
     public String addedToCooldown = ""; //Should be removed if the Player fails to pass through the Turnstile
     public boolean privateWhileOnCooldown = false;
     public int amountPerCooldown = 1; //This value only applies when privateWhileOnCooldown == true
 
-    public LinkedList<String> access = null; //List of Groups that have access (private if empty, public if null)
-    public LinkedList<TurnstileButton> buttons = new LinkedList<TurnstileButton>(); //List of Blocks that activate the Warp
+    public ArrayList<TurnstileButton> buttons = new ArrayList<>(); //List of Blocks that activate the Turnstile
 
     public boolean open = false;
     private int instance = 0;
     private BlockFace openedFrom;
 
     /**
-     * Creates a Turnstile from the save file.
-     *
-     * @param name The name of the Turnstile
-     * @param owner The Player or Bank that owns the Turnstile
-     * @param world The name of World that the Block is in
-     * @param x The x-coord of the Block
-     * @param y The y-coord of the Block
-     * @param z The z-coord of the Block
-     */
-    public Turnstile (String name, String owner, String world, int x, int y, int z) {
-        this.name = name;
-        this.owner = owner;
-        this.world = world;
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
-
-    /**
      * Constructs a new Turnstile
      *
      * @param name The name of the Turnstile which cannot already exist
      * @param owner The Player who is creating the Turnstile and also the default owner
-     * @param block The Block of the Trendulla
+     * @param block The Block of the Trendula
      */
     public Turnstile (String name, String owner, Block block) {
         this.name = name;
@@ -118,18 +114,18 @@ public class Turnstile {
     }
 
     /**
-     * Checks the contents of the Chest and compares it to the item, amount, and durability
+     * Checks the contents of the Inventory and compares it to the item, amount, and durability
      *
-     * @param chest The Chest being activated
+     * @param inventory The Inventory being checked
      * @param player The Player who activated the Chest
      */
     public void checkContents(Inventory inventory, Player player) {
-        LinkedList<Integer> flagForDelete = new LinkedList<Integer>();
+        HashSet<Integer> flagForDelete = new HashSet<>();
 
-        for (Item item: items) {
-            LinkedList<Integer> delete = item.findItem(inventory);
+        for (ItemStack item : items) {
+            HashSet<Integer> delete = findItem(inventory, item);
 
-            if (delete == null) {
+            if (delete.isEmpty()) {
                 player.sendMessage(TurnstileMessages.wrong);
                 return;
             }
@@ -138,7 +134,7 @@ public class Turnstile {
         }
 
         //Delete each stack in the Chest that is flagged for delete
-        for (int stack: flagForDelete) {
+        for (int stack : flagForDelete) {
             inventory.clear(stack);
         }
 
@@ -155,6 +151,46 @@ public class Turnstile {
         }
 
         save();
+    }
+
+    private HashSet<Integer> findItem(Inventory inventory, ItemStack item) {
+        HashSet<Integer> flagForDelete = new HashSet<>();
+        int total = 0;
+        String displayName = null;
+        if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta.hasDisplayName()) {
+                displayName = meta.getDisplayName();
+            }
+        }
+
+        //Iterate through the contents of the Inventory to look for matching items
+        ItemStack[] stacks = inventory.getContents();
+        for (ItemStack stack : stacks) {
+            if (stack != null) {
+                boolean match = false;
+                if (displayName != null) {
+                    if (stack.hasItemMeta()) {
+                        ItemMeta meta = stack.getItemMeta();
+                        if (meta.hasDisplayName() && meta.getDisplayName().equals(displayName)) {
+                            match = true;
+                        }
+                    }
+                } else if (item.isSimilar(stack)) {
+                    match = true;
+                }
+                if (match) {
+                    total += stack.getAmount();
+                }
+                //Check if enough items were found
+                if (total >= item.getAmount()) {
+                    return flagForDelete;
+                }
+            }
+        }
+
+        //Not enough items were found
+        return new HashSet<>();
     }
 
     /**
@@ -179,7 +215,7 @@ public class Turnstile {
         }
 
         //Return true if the Player can open Turnstiles for free
-        if (TurnstileMain.useOpenFreeNode && TurnstileMain.hasPermission(player, "openfree")) {
+        if (player.hasPermission("turnstile.openfree")) {
             if (debug) {
                 TurnstileMain.logger.warning(name + " Debug: " + playerName
                                     + " is not charged to open Turnstiles");
@@ -234,7 +270,7 @@ public class Turnstile {
 
         //Increment earned by the price
         player.sendMessage(TurnstileMessages.open.replace("<price>", Econ.format(price)));
-        moneyEarned = moneyEarned + price;
+        moneyEarned += price;
 
         //Increment the amount of money earned on linked Signs
         for (TurnstileSign sign: TurnstileMain.moneySigns) {
@@ -260,43 +296,45 @@ public class Turnstile {
             TurnstileMain.logger.warning(name + " Debug: Checking access rights for " + playerName);
         }
 
-        if (access != null) { //Turnstile is not public
-            if (access.isEmpty()) { //Turnstile is private
-                if (debug) {
-                    TurnstileMain.logger.warning(name + " Debug: Turnstile is private");
-                    TurnstileMain.logger.warning(name + " Debug: " + playerName
-                            + (isOwner(player) ? " is an owner" : " is not an owner"));
-                }
-
-                if (!isOwner(player)) {
-                    player.sendMessage(TurnstileMessages.privateTurnstile);
-                    return false;
-                }
-            } else { //Turnstile has group access
-                if (debug) {
-                    TurnstileMain.logger.warning(name + " Debug: Turnstile has group access");
-                }
-
-                //Return true if the Player is in a group that has access
-                World world = null;
-                for (String group: access) {
-                    if (debug) {
-                        TurnstileMain.logger.warning(name + " Debug: " + playerName
-                                + (TurnstileMain.permission.playerInGroup(world, playerName, group)
-                                    ? " is in group "
-                                    : " is not in group ")
-                                + group);
-                    }
-
-                    if (!TurnstileMain.permission.playerInGroup(world, playerName, group)) {
-                        player.sendMessage(TurnstileMessages.privateTurnstile);
-                        return false;
-                    }
-                }
-            }
-        } else {
+        switch (access) {
+        case "public":
             if (debug) {
                 TurnstileMain.logger.warning(name + " Debug: Turnstile is public");
+            }
+        case "private":
+            if (debug) {
+                TurnstileMain.logger.warning(name + " Debug: Turnstile is private");
+                TurnstileMain.logger.warning(name + " Debug: " + playerName
+                        + (isOwner(player) ? " is an owner" : " is not an owner"));
+            }
+
+            if (!isOwner(player)) {
+                player.sendMessage(TurnstileMessages.privateTurnstile);
+                return false;
+            }
+        default: //Turnstile has limited access
+            if (debug) {
+                TurnstileMain.logger.warning(name + " Debug: Turnstile has limited access");
+            }
+
+            boolean hasAccess = false;
+            for (String node : access.split(" ")) {
+                if (node.equalsIgnoreCase(playerName)) {
+                    if (debug) {
+                        TurnstileMain.logger.warning(name + " Debug: " + playerName + " is on the access list");
+                    }
+                    break;
+                } else if (player.hasPermission(node)) {
+                    hasAccess = true;
+                    break;
+                }
+                    
+            }
+            if (!hasAccess) {
+                if (debug) {
+                    TurnstileMain.logger.warning(name + " Debug: " + playerName + " is not on the access list");
+                }
+                player.sendMessage(TurnstileMessages.privateTurnstile);
             }
         }
 
@@ -304,41 +342,34 @@ public class Turnstile {
             return true;
         }
 
-        System.out.println(onCooldown);
+        String time = String.valueOf(getCurrentMillis());
         if (!onCooldown.isEmpty()) { //Turnstile currently on cooldown
             if (!onCooldown.containsKey(playerName)) { //Player currently on cooldown
                 if (privateWhileOnCooldown) {
-                    String time = (String) onCooldown.values().toArray()[0];
-                    String timeRemaining = getTimeRemaining(Long.parseLong(time));
+                    String lastUse = (String) onCooldown.values().toArray()[0];
+                    String timeRemaining = getTimeRemaining(Long.parseLong(lastUse));
                     if (timeRemaining == null || !timeRemaining.equals("0")) { //Still cooling down
                         if (onCooldown.size() >= amountPerCooldown) { //Full amount is already on cooldown
                             player.sendMessage(TurnstileMessages.cooldownPrivate.replace("<time>", timeRemaining));
                             return false;
                         } else {
-                            onCooldown.setProperty(playerName, time);
-                            addedToCooldown = playerName;
+                            time = lastUse;
                         }
                     } else {
                         onCooldown.clear();
-                        addToCooldown(playerName);
                     }
-                } else {
-                    addToCooldown(playerName);
                 }
             } else {
                 String timeRemaining = getTimeRemaining(Long.parseLong(onCooldown.getProperty(playerName)));
-                System.out.println(timeRemaining);
                 if (timeRemaining == null || !timeRemaining.equals("0")) { //Still cooling down
                     player.sendMessage(TurnstileMessages.cooldown.replace("<time>", timeRemaining));
                     return true;
                 }
                 onCooldown.remove(playerName);
-                addToCooldown(playerName);
             }
-        } else {
-            addToCooldown(playerName);
         }
 
+        addToCooldown(playerName, time);
         return true;
     }
 
@@ -352,44 +383,7 @@ public class Turnstile {
         setOpenedFrom(block);
         TurnstileListener.openTurnstiles.add(this);
 
-        block = TurnstileMain.server.getWorld(world).getBlockAt(x, y, z);
-
-        //Determine the type of the gate to know how to open it
-        switch (block.getType()) {
-        case FENCE: //Change FENCE to AIR
-            block.setTypeId(0);
-            break;
-
-        case TRAP_DOOR: //Fall through
-        case FENCE_GATE: //Open FenceGate/TrapDoor
-            //Open the gate if it is closed
-            block.setData((byte) (block.getState().getRawData() | 4));
-            break;
-
-        case WOOD_DOOR: //Fall through
-        case WOODEN_DOOR: //Fall through
-        case IRON_DOOR: //Fall through
-        case IRON_DOOR_BLOCK: //Open Door
-            //Convert the Block to a Door
-            BlockState state = block.getState();
-            Door door = (Door) state.getData();
-
-            //Open the Door
-            door.setOpen(true);
-            state.update();
-
-            //Get the other half of the Door
-            state = block.getRelative(BlockFace.UP).getState();
-            door = (Door) state.getData();
-
-            //Open the Door
-            door.setOpen(true);
-            state.update();
-
-            break;
-
-        default: break;
-        }
+        TurnstileUtil.openDoor(getBlock());
 
         //Return if there is no timeOut set
         if (timeOut == 0) {
@@ -401,9 +395,9 @@ public class Turnstile {
         final int temp = instance;
 
         //Close the gate after the specified amount of time
-        TurnstileMain.server.getScheduler().scheduleSyncDelayedTask(TurnstileMain.plugin, new Runnable() {
+        new BukkitRunnable() {
             @Override
-    	    public void run() {
+            public void run() {
                 //Close if the Turnstile is open and a new instance was not started
                 if (open && (temp == instance)) {
                     if (!addedToCooldown.isEmpty()) {
@@ -412,50 +406,15 @@ public class Turnstile {
                     }
                     close();
                 }
-    	    }
-    	}, 20L * timeOut);
+            }
+        }.runTaskLater(TurnstileMain.plugin, 20L * timeOut);
     }
 
     /**
      * Closes the Turnstile
      */
     public void close() {
-        Block block = TurnstileMain.server.getWorld(world).getBlockAt(x, y, z);
-
-        //Determine the type of the gate to know how to close it
-        switch (block.getType()) {
-        case TRAP_DOOR: //Fall through
-        case FENCE_GATE: //Close FenceGate/TrapDoor
-            //Close the gate if it is open
-            block.setData((byte) (block.getState().getRawData() & 11));
-            break;
-
-        case WOOD_DOOR: //Fall through
-        case WOODEN_DOOR: //Fall through
-        case IRON_DOOR: //Fall through
-        case IRON_DOOR_BLOCK: //Open Door
-            //Convert the Block to a Door
-            BlockState state = block.getState();
-            Door door = (Door) state.getData();
-
-            //Open the Door
-            door.setOpen(false);
-            state.update();
-
-            //Get the other half of the Door
-            state = block.getRelative(BlockFace.UP).getState();
-            door = (Door) state.getData();
-
-            //Open the Door
-            door.setOpen(false);
-            state.update();
-
-            break;
-
-        default: //Change AIR to FENCE
-            block.setTypeId(85);
-            break;
-        }
+        TurnstileUtil.closeDoor(getBlock());
 
         open = false;
         TurnstileListener.openTurnstiles.remove(this);
@@ -480,7 +439,7 @@ public class Turnstile {
         PlayerInventory sack = player.getInventory();
 
         //Loop unless the Player's inventory is full
-        while (sack.firstEmpty() >= 0) {
+        while (sack.firstEmpty() >= 0) { //TODO make sure there is room for each item
             //Return when all earned items are collected
             if (itemsEarned <= 0) {
                 player.sendMessage("There are no more items to collect");
@@ -488,10 +447,10 @@ public class Turnstile {
             }
 
             //Add the stack to the Player's inventory and decrement earned
-            for (Item item: items) {
+            for (ItemStack item : items) {
                 int firstEmpty = sack.firstEmpty();
                 if (firstEmpty >= 0) {
-                    sack.setItem(firstEmpty, item.getItem());
+                    sack.setItem(firstEmpty, item.clone());
                 }
             }
 
@@ -553,30 +512,39 @@ public class Turnstile {
                 + minutes * DateUtils.MILLIS_PER_MINUTE
                 + seconds * DateUtils.MILLIS_PER_SECOND;
 
-        long timeRemaining = time - getCurrentMillis();
+        return timeToString(time - getCurrentMillis());
+    }
 
-        if (timeRemaining > DateUtils.MILLIS_PER_DAY) {
-            return (int) timeRemaining / DateUtils.MILLIS_PER_DAY + " day(s)";
-        } else if (timeRemaining > DateUtils.MILLIS_PER_HOUR) {
-            return (int) timeRemaining / DateUtils.MILLIS_PER_HOUR + " hour(s)";
-        } else if (timeRemaining > DateUtils.MILLIS_PER_MINUTE) {
-            return (int) timeRemaining / DateUtils.MILLIS_PER_MINUTE + " minute(s)";
-        } else if (timeRemaining > DateUtils.MILLIS_PER_SECOND) {
-            return (int) timeRemaining / DateUtils.MILLIS_PER_SECOND + " second(s)";
+    /**
+     * Returns a human friendly String of the remaining time until the PhatLootChest resets
+     *
+     * @param time The given time
+     * @return the remaining time until the PhatLootChest resets
+     */
+    private String timeToString(long time) {
+        //Find the appropriate unit of time and return that amount
+        if (time > DateUtils.MILLIS_PER_DAY) {
+            return time / DateUtils.MILLIS_PER_DAY + " day(s)";
+        } else if (time > DateUtils.MILLIS_PER_HOUR) {
+            return time / DateUtils.MILLIS_PER_HOUR + " hour(s)";
+        } else if (time > DateUtils.MILLIS_PER_MINUTE) {
+            return time / DateUtils.MILLIS_PER_MINUTE + " minute(s)";
+        } else if (time > DateUtils.MILLIS_PER_SECOND) {
+            return time / DateUtils.MILLIS_PER_SECOND + " second(s)";
         } else {
             return "0";
         }
     }
 
     /**
-     * Compares player to owner to see if they match
+     * Compares sender to owner to see if they match
      * Checks Bank owners as well
      *
-     * @param player The player who is using the Turnstile command
+     * @param sender The CommandSender who is using the Turnstile command
      * @return true if the player is an owner
      */
-    public boolean isOwner(Player player) {
-        String playerName = player.getName();
+    public boolean isOwner(CommandSender sender) {
+        String playerName = sender.getName();
 
         //Return true if Player is the owner
         if (playerName.equalsIgnoreCase(owner)) {
@@ -590,7 +558,7 @@ public class Turnstile {
         }
 
         //Return true if Player has the Permission to ignore owner rights
-        if (TurnstileMain.hasPermission(player, "admin.ignoreowner")) {
+        if (sender.hasPermission("admin.ignoreowner")) {
             return true;
         }
 
@@ -647,19 +615,18 @@ public class Turnstile {
      * @return True if the Location data is the same
      */
     public boolean isBlock(Block block) {
-        if (block.getX() != x) {
-            return false;
-        }
+        block = TurnstileUtil.getBottomHalf(block);
+        return block.getX() == x && block.getY() == y && block.getZ() == z
+                && block.getWorld().getName().equals(world);
+    }
 
-        if (block.getY() != y) {
-            return false;
-        }
-
-        if (block.getZ() != z) {
-            return false;
-        }
-
-        return block.getWorld().getName().equals(world);
+    /**
+     * Returns The Block of the Turnstile Door/Gate
+     *
+     * @return The Block of the Trendula
+     */
+    public Block getBlock() {
+        return Bukkit.getWorld(world).getBlockAt(x, y, z);
     }
 
     /**
@@ -669,29 +636,14 @@ public class Turnstile {
      * @return True if the Location data is the same
      */
     public boolean hasBlock(Block block) {
-        switch (block.getType()) {
-        case WOOD_DOOR: //Fall through
-        case WOODEN_DOOR: //Fall through
-        case IRON_DOOR: //Fall through
-        case IRON_DOOR_BLOCK: //Get bottom half
-            if (((Door) block.getState().getData()).isTopHalf()) {
-                block = block.getRelative(BlockFace.DOWN);
-            }
-            break;
-        default: break;
-        }
-
-        //Return True if the Trendulla Block matches the given Block
-        if (block.getX() == x && block.getY() == y &&
-                block.getZ() == z && block.getWorld().getName().equals(world)) {
+        //Return True if the Trendula Block matches the given Block
+        if (isBlock(block)) {
             return true;
         }
 
         //Iterate through the data to find a TurnstileButton that matches the given Block
-        for (TurnstileButton button: buttons) {
-            if (block.getX() == button.x && block.getY() == button.y
-                    && block.getZ() == button.z
-                    && block.getWorld().getName().equals(button.world)) {
+        for (TurnstileButton button : buttons) {
+            if (button.matchesBlock(block)) {
                 return true;
             }
         }
@@ -711,61 +663,43 @@ public class Turnstile {
             return "";
         }
 
-        String string = "";
-        for (Item item: items) {
-            string = string.concat(", " + item.toInfoString());
-        }
-        return string.substring(2);
-    }
-
-    /**
-     * Returns the info of the Items as a String
-     * This String is used for write data to file
-     *
-     * @return The String representation of the Items
-     */
-    public String itemsToString() {
-        if (items.isEmpty()) {
-            return "";
-        }
-
-        String string = "";
-        for (Item item: items) {
-            string = string.concat(", " + item.toString());
-        }
-        return string.substring(2);
-    }
-
-    /**
-     * Adds Items from the given String of Item datas
-     *
-     * @data The String representation of the Items
-     */
-    public void setItems(String data) {
-        if (data.isEmpty()) {
-            return;
-        }
-
-        for (String item: data.split(", ")) {
-            try {
-                String[] itemData = item.split("'");
-                LinkedList<Enchantment> enchantments = TurnstileCommand.getEnchantments(itemData[1]);
-
-                if (enchantments == null) {
-                    items.add(new Item(Integer.parseInt(itemData[0]),
-                            Short.parseShort(itemData[1]), Integer.parseInt(itemData[2])));
-                } else {
-                    items.add(new Item(Integer.parseInt(itemData[0]),
-                            enchantments, Integer.parseInt(itemData[2])));
-                }
-            } catch (Exception e) {
+        StringBuilder sb = new StringBuilder();
+        Iterator<ItemStack> itr = items.iterator();
+        while (itr.hasNext()) {
+            sb.append(getItemName(itr.next()));
+            if (itr.hasNext()) {
+                sb.append(", ");
             }
         }
+        return sb.toString();
     }
 
-    public void addToCooldown(String player) {
-        onCooldown.setProperty(player, String.valueOf(getCurrentMillis()));
-        System.out.println(onCooldown);
+    /**
+     * Returns a user friendly String of the given ItemStack's name
+     *
+     * @param item The given ItemStack
+     * @return The name of the item
+     */
+    public static String getItemName(ItemStack item) {
+        StringBuilder sb = new StringBuilder();
+        if (item.getAmount() > 1) {
+            sb.append(item.getAmount());
+            sb.append(" of ");
+        }
+        //Return the Display name of the item if there is one
+        if (item.hasItemMeta()) {
+            String name = item.getItemMeta().getDisplayName();
+            if (name != null && !name.isEmpty()) {
+                sb.append(name);
+            }
+        }
+        //A display name was not found so use a cleaned up version of the Material name
+        sb.append(WordUtils.capitalizeFully(item.getType().toString().replace("_", " ")));
+        return sb.toString();
+    }
+
+    public void addToCooldown(String player, String time) {
+        onCooldown.setProperty(player, time);
         addedToCooldown = player;
     }
 
@@ -787,11 +721,196 @@ public class Turnstile {
         return Calendar.getInstance().getTimeInMillis();
     }
 
+    public void clean() {
+        //TODO
+    }
+
     /**
      * Writes the Turnstile data to file
-     *
+     */
+    public void saveAll() {
+        save();
+        saveCooldownTimes();
+    }
+
+    /**
+     * Writes the Cooldown times of the Turnstile to file
+     * if there is an old file it is over written
+     */
+    public void saveCooldownTimes() {
+        //Don't save an empty file
+        if (onCooldown.isEmpty()) {
+            return;
+        }
+
+        File file = new File(TurnstileMain.dataFolder, "CooldownTimes" + File.separator + name + ".properties");
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            onCooldown.store(fos, null);
+        } catch (IOException ex) {
+            TurnstileMain.logger.log(Level.SEVERE, "Save Failed!", ex);
+        }
+    }
+
+    /**
+     * Reads Cooldown times of the Turnstile from file
+     */
+    public void loadCooldownTimes() {
+        try {
+            File file = new File(TurnstileMain.dataFolder, "CooldownTimes" + File.separator + name + ".properties");
+            if (!file.exists()) {
+                return;
+            }
+            try (FileInputStream fis = new FileInputStream(file)) {
+                onCooldown.load(fis);
+            }
+        } catch (IOException ex) {
+            TurnstileMain.logger.log(Level.SEVERE, "Load Failed!", ex);
+        }
+    }
+
+    /**
+     * Writes the Turnstile to file.
+     * If there is an old file it is over written
      */
     public void save() {
-        TurnstileMain.saveTurnstile(this);
+        try {
+            YamlConfiguration config = new YamlConfiguration();
+            config.set(name, this);
+            config.save(new File(TurnstileMain.dataFolder, "Turnstiles" + File.separator + name + ".yml"));
+        } catch (IOException ex) {
+            TurnstileMain.logger.log(Level.SEVERE, "Could not save Turnstile " + name, ex);
+        }
+    }
+
+    @Override
+    public Map<String, Object> serialize() {
+        Map map = new TreeMap();
+        map.put("Name", name);
+        map.put("Owner", owner);
+
+        Map nestedMap = new HashMap();
+        nestedMap.put("World", world);
+        nestedMap.put("x", x);
+        nestedMap.put("y", y);
+        nestedMap.put("z", z);
+        map.put("Trendula", nestedMap);
+
+        if (price != 0) {
+            map.put("Price", price);
+        }
+        if (moneyEarned != 0) {
+            map.put("MoneyEarned", moneyEarned);
+        }
+
+        if (!items.isEmpty()) {
+            map.put("Items", items);
+        }
+        if (itemsEarned != 0) {
+            map.put("ItemsEarned", itemsEarned);
+        }
+
+        map.put("OneWay", oneWay);
+        map.put("NoFraud", noFraud);
+        map.put("TimeOut", timeOut);
+        map.put("PrivateWhileOnCooldown", privateWhileOnCooldown);
+        map.put("AmountPerCooldown", amountPerCooldown);
+
+        if (freeStart != 0 || freeEnd != 0) {
+            nestedMap = new HashMap();
+            nestedMap.put("Start", freeStart);
+            nestedMap.put("End", freeEnd);
+            map.put("Free", nestedMap);
+        }
+
+        if (lockedStart != 0 || lockedEnd != 0) {
+            nestedMap = new HashMap();
+            nestedMap.put("Start", lockedStart);
+            nestedMap.put("End", lockedEnd);
+            map.put("Locked", nestedMap);
+        }
+
+        map.put("Access", access);
+
+        nestedMap = new HashMap();
+        nestedMap.put("Days", days);
+        nestedMap.put("Hours", hours);
+        nestedMap.put("Minutes", minutes);
+        nestedMap.put("Seconds", seconds);
+        map.put("Cooldown", nestedMap);
+        map.put("RoundDownTime", roundDown);
+
+        map.put("Buttons", buttons);
+
+        return map;
+    }
+
+    /**
+     * Constructs a new Turnstile from a Configuration Serialized phase
+     *
+     * @param map The map of data values
+     */
+    public Turnstile(Map<String, Object> map) {
+        String currentLine = null; //The value that is about to be loaded (used for debugging)
+        try {
+            current = name = (String) map.get(currentLine = "Name");
+            owner = (String) map.get(currentLine = "Owner");
+
+            Map nestedMap = (Map) map.get(currentLine = "Trendula");
+            world = (String) nestedMap.get(currentLine = "World");
+            x = (Integer) nestedMap.get(currentLine = "x");
+            y = (Integer) nestedMap.get(currentLine = "y");
+            z = (Integer) nestedMap.get(currentLine = "z");
+
+            nestedMap = (Map) map.get(currentLine = "Reset");
+            days = (Integer) nestedMap.get(currentLine = "Days");
+            hours = (Integer) nestedMap.get(currentLine = "Hours");
+            minutes = (Integer) nestedMap.get(currentLine = "Minutes");
+            seconds = (Integer) nestedMap.get(currentLine = "Seconds");
+
+            if (map.containsKey(currentLine = "Price")) {
+                price = (Double) map.get(currentLine);
+            }
+            if (map.containsKey(currentLine = "MoneyEarned")) {
+                moneyEarned = (Double) map.get(currentLine);
+            }
+
+            if (map.containsKey(currentLine = "Items")) {
+                items = (ArrayList) map.get(currentLine);
+            }
+            if (map.containsKey(currentLine = "ItemsEarned")) {
+                itemsEarned = (Integer) map.get(currentLine);
+            }
+
+            timeOut = (Integer) map.get(currentLine = "TimeOut");
+            oneWay = (Boolean) map.get(currentLine = "OneWay");
+            noFraud = (Boolean) map.get(currentLine = "NoFraud");
+            privateWhileOnCooldown = (Boolean) map.get(currentLine = "PrivateWhileOnCooldown");
+            amountPerCooldown = (Integer) map.get(currentLine = "AmountPerCooldown");
+
+            if (map.containsKey(currentLine = "Free")) {
+                nestedMap = (Map) map.get(currentLine);
+                freeStart = (Integer) nestedMap.get(currentLine = "Start");
+                freeEnd = (Integer) nestedMap.get(currentLine = "End");
+            }
+
+            if (map.containsKey(currentLine = "Locked")) {
+                nestedMap = (Map) map.get(currentLine = "Locked");
+                lockedStart = (Integer) nestedMap.get(currentLine = "Start");
+                lockedEnd = (Integer) nestedMap.get(currentLine = "End");
+            }
+
+            access = (String) map.get(currentLine = "Access");
+            buttons = (ArrayList) map.get(currentLine = "Buttons");
+        } catch (Exception ex) {
+            //Print debug messages
+            TurnstileMain.logger.severe("Failed to load line: " + currentLine);
+            TurnstileMain.logger.severe("of Turnstile: " + (current == null ? "unknown" : current));
+            if (current == null) {
+                TurnstileMain.logger.severe("Last successful load was...");
+                TurnstileMain.logger.severe("Turnstile: " + (last == null ? "unknown" : last));
+            }
+        }
+        last = current;
+        current = null;
     }
 }

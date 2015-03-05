@@ -1,7 +1,7 @@
 package com.codisimus.plugins.turnstile;
 
-import net.citizensnpcs.api.CitizensManager;
-import net.citizensnpcs.resources.npclib.HumanNPC;
+import net.citizensnpcs.api.CitizensAPI;
+import net.citizensnpcs.api.npc.NPC;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -24,14 +24,14 @@ public class NPCListener implements Listener {
     public void onPlayerInteractEntity (PlayerInteractEntityEvent event) {
         //Return if the Entity clicked is not an NPC
         Entity entity = event.getRightClicked();
-        if(!CitizensManager.isNPC(entity)) {
+        if(!CitizensAPI.getNPCRegistry().isNPC(entity)) {
             return;
         }
 
-        HumanNPC npc = CitizensManager.get(entity);
+        NPC npc = CitizensAPI.getNPCRegistry().getNPC(entity);
 
-        //Return if the switch is not linked to a Turnstile
-        Turnstile turnstile = TurnstileMain.findTurnstile(npc.getBaseLocation().getBlock());
+        //Return if the NPC is not linked to a Turnstile
+        Turnstile turnstile = TurnstileMain.findTurnstile(npc.getStoredLocation().getBlock());
         if (turnstile == null) {
             return;
         }
@@ -43,7 +43,7 @@ public class NPCListener implements Listener {
 
         //Return if the Player does not have permission to open Turnstiles
         Player player = event.getPlayer();
-        if (!TurnstileMain.hasPermission(player, "open")) {
+        if (!player.hasPermission("turnstile.open")) {
             player.sendMessage(TurnstileMessages.permission);
             return;
         }
@@ -68,6 +68,6 @@ public class NPCListener implements Listener {
             return;
         }
 
-        turnstile.checkContents(npc.getInventory(), player);
+        turnstile.checkContents(player.getInventory(), player);
     }
 }

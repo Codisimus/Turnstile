@@ -5,7 +5,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.block.Chest;
 import org.bukkit.block.Sign;
 import org.bukkit.entity.HumanEntity;
@@ -18,8 +17,7 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.material.Door;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * Listens for interactions with Turnstiles
@@ -27,10 +25,12 @@ import org.bukkit.material.Door;
  * @author Codisimus
  */
 public class TurnstileListener implements Listener {
-    public static LinkedList<Turnstile> openTurnstiles = new LinkedList<Turnstile>();
-    static HashMap<Player, Block> occupiedTrendulas = new HashMap<Player, Block>();
-    private static enum Type { NAME, PRICE, COST, COUNTER, MONEY, ITEMS, ACCESS, STATUS }
-    private static HashMap<Player, Block> openChests = new HashMap<Player, Block>();
+    private static final int SIGN_MAX_LENGTH = 20;
+    private static final int FIRST_TYPE_LOCATION = 2;
+    private static final int SECOND_TYPE_LOCATION = 3;
+    public static LinkedList<Turnstile> openTurnstiles = new LinkedList<>();
+    static HashMap<Player, Block> occupiedTrendulas = new HashMap<>();
+    private static HashMap<Player, Block> openChests = new HashMap<>();
 
     /**
      * Listens for Players attempting to open Turnstiles
@@ -50,15 +50,11 @@ public class TurnstileListener implements Listener {
         }
 
         switch (block.getType()) {
-        case WOOD_DOOR: //Fall through
-        case WOODEN_DOOR: //Get the bottom half of the door
-            block = ((Door) block.getState().getData()).isTopHalf()
-                    ? block.getRelative(BlockFace.DOWN)
-                    : block;
-
-        case TRAP_DOOR: //Fall through
+        case WOOD_DOOR:
+        case WOODEN_DOOR:
+        case TRAP_DOOR:
         case FENCE_GATE: //Cancel event if a Turnstile Gate was clicked
-            for (Turnstile turnstile: TurnstileMain.getTurnstiles()) {
+            for (Turnstile turnstile : TurnstileMain.getTurnstiles()) {
                 if (turnstile.isBlock(block)) {
                     event.setCancelled(true);
                     return;
@@ -67,13 +63,14 @@ public class TurnstileListener implements Listener {
             break;
 
         case CHEST:
+        case TRAPPED_CHEST:
             //Return if the Chest is not linked to a Turnstile
             if (TurnstileMain.findTurnstile(block) == null) {
                 return;
             }
 
             //Remove the Player as having the Chest open if they are offline
-            for (Player player: openChests.keySet()) {
+            for (Player player : openChests.keySet()) {
                 if (!player.isOnline()) {
                     openChests.remove(player);
                 }
@@ -81,7 +78,7 @@ public class TurnstileListener implements Listener {
 
             Player chestOpener = event.getPlayer();
 
-            Block chestBlock = openChests.containsValue(block) ? block : TurnstileMain.getOtherHalf(block);
+            Block chestBlock = openChests.containsValue(block) ? block : TurnstileMain.getOtherSide(block);
 
             //Check if the Chest is already in use
             if (openChests.containsValue(chestBlock)) {
@@ -95,35 +92,32 @@ public class TurnstileListener implements Listener {
             }
             break;
 
-        case STONE_PLATE: //Fall through
-        case WOOD_PLATE: //Fall through
-        case STONE_BUTTON: //Try to open a Turnstile if a linked switch was activated
+        case STONE_PLATE:
+        case WOOD_PLATE:
+        case STONE_BUTTON:
+        case WOOD_BUTTON: //Try to open a Turnstile if a linked switch was activated
             //Return if the switch is not linked to a Turnstile
             Turnstile turnstile = TurnstileMain.findTurnstile(block);
             if (turnstile == null) {
                 return;
             }
 
-            //Return if the Turnstile is already open
             if (turnstile.open) {
                 return;
             }
 
-            //Return if the Player does not have permission to open Turnstiles
             Player player = event.getPlayer();
-            if (!TurnstileMain.hasPermission(player, "open")) {
+            if (!player.hasPermission("turnstile.open")) {
                 player.sendMessage(TurnstileMessages.permission);
                 return;
             }
 
-            //Return if the Player does not have access rights to the Turnstile
             if (!turnstile.hasAccess(player)) {
                 return;
             }
 
             long time = player.getWorld().getTime();
 
-            //Return if the Turnstile is locked
             if (turnstile.isLocked(time)) {
                 player.sendMessage(TurnstileMessages.locked);
                 return;
@@ -143,13 +137,15 @@ public class TurnstileListener implements Listener {
                     player.sendMessage(TurnstileMessages.free);
                 } else {
                     player.sendMessage(TurnstileMessages.displayCost.replace("<price>",
-                            ""+Econ.economy.format(turnstile.price)));
+                            "" + Econ.economy.format(turnstile.price)));
                 }
             } else if (turnstile.checkBalance(player)) {
                 turnstile.open(block);
             }
+            break;
 
-        default: break;
+        default:
+            break;
         }
     }
 
@@ -280,21 +276,19 @@ public class TurnstileListener implements Listener {
         //Return if the Block is not a door
         Block block = event.getBlock();
         switch (block.getType()) {
-        case WOOD_DOOR: //Fall through
-        case WOODEN_DOOR: //Fall through
-        case IRON_DOOR: //Fall through
-        case IRON_DOOR_BLOCK: //Get the bottom half of the door
-            if (((Door) block.getState().getData()).isTopHalf()) {
-                block = block.getRelative(BlockFace.DOWN);
-            }
-
-        case TRAP_DOOR: break;
-
-        default: return;
+        case WOOD_DOOR:
+        case WOODEN_DOOR:
+        case IRON_DOOR:
+        case IRON_DOOR_BLOCK:
+        case TRAP_DOOR:
+        case FENCE_GATE:
+            break;
+        default:
+            return;
         }
 
         //Iterate through all Turnstiles and cancel the event if the Block is the Turnstile gate
-        for (Turnstile turnstile: TurnstileMain.getTurnstiles()) {
+        for (Turnstile turnstile : TurnstileMain.getTurnstiles()) {
             if (turnstile.isBlock(block)) {
                 event.setNewCurrent(event.getOldCurrent());
             }
@@ -316,16 +310,12 @@ public class TurnstileListener implements Listener {
         Player player = event.getPlayer();
 
         switch (block.getType()) {
-        case WOOD_DOOR: //Fall through
-        case WOODEN_DOOR: //Fall through
-        case IRON_DOOR: //Fall through
-        case IRON_DOOR_BLOCK: //Get the bottom half of the Door
-            block = ((Door) block.getState().getData()).isTopHalf()
-                    ? block.getRelative(BlockFace.DOWN)
-                    : block;
-
-        case TRAP_DOOR: //Fall through
-        case FENCE_GATE: //Fall through
+        case WOOD_DOOR:
+        case WOODEN_DOOR:
+        case IRON_DOOR:
+        case IRON_DOOR_BLOCK:
+        case TRAP_DOOR:
+        case FENCE_GATE:
         case FENCE: //Cancel the Event if the Block is linked to a Turnstile
             for (Turnstile turnstile: TurnstileMain.getTurnstiles()) {
                 if (turnstile.isBlock(block)) {
@@ -338,9 +328,9 @@ public class TurnstileListener implements Listener {
             }
             break;
 
-        case CHEST: //Fall through
-        case STONE_PLATE: //Fall through
-        case WOOD_PLATE: //Fall through
+        case CHEST:
+        case STONE_PLATE:
+        case WOOD_PLATE:
         case STONE_BUTTON: //Do not allow Turnstile Blocks to be broken
             //Return if the Block is not linked to a Turnstile
             Turnstile turnstile = TurnstileMain.findTurnstile(block);
@@ -354,48 +344,57 @@ public class TurnstileListener implements Listener {
             }
             break;
 
-        case SIGN: //Fall through
-        case SIGN_POST: //Fall through
+        case SIGN:
+        case SIGN_POST:
         case WALL_SIGN: //Unlink Signs if they are broken
-            Sign sign = (Sign)event.getBlock().getState();
+            Sign sign = (Sign) event.getBlock().getState();
             for (int i = 0; i <= 2; i = i + 2) {
                 String line = sign.getLine(i);
 
-                if (line.equals("Currently:")) {
+                switch (line) {
+                case "Currently:":
                     for (TurnstileSign tsSign: TurnstileMain.statusSigns.keySet()) {
                         if (tsSign.sign.equals(sign)) {
-                            int id = TurnstileMain.statusSigns.get(tsSign);
-                            TurnstileMain.server.getScheduler().cancelTask(id);
+                            BukkitTask task = TurnstileMain.statusSigns.get(tsSign);
+                            if (task != null) {
+                                task.cancel();
+                            }
                             TurnstileMain.statusSigns.remove(tsSign);
                         }
                     }
-                } else if (line.equals("Player Count:")) {
-                    Iterator<TurnstileSign> itr = TurnstileMain.counterSigns.iterator();
-                    while (itr.hasNext()) {
-                        if (itr.next().sign.equals(sign)) {
-                            itr.remove();
+                    break;
+                case "Player Count:":
+                    Iterator<TurnstileSign> counterSignsItr = TurnstileMain.counterSigns.iterator();
+                    while (counterSignsItr.hasNext()) {
+                        if (counterSignsItr.next().sign.equals(sign)) {
+                            counterSignsItr.remove();
                         }
                     }
-                } else if (line.equals("Money Earned:")) {
-                    Iterator<TurnstileSign> itr = TurnstileMain.moneySigns.iterator();
-                    while (itr.hasNext()) {
-                        if (itr.next().sign.equals(sign)) {
-                            itr.remove();
+                    break;
+                case "Money Earned:":
+                    Iterator<TurnstileSign> moneySignsItr = TurnstileMain.moneySigns.iterator();
+                    while (moneySignsItr.hasNext()) {
+                        if (moneySignsItr.next().sign.equals(sign)) {
+                            moneySignsItr.remove();
+                        }
+                    }   break;
+                case "Items Earned:":
+                    Iterator<TurnstileSign> itemSignsItr = TurnstileMain.itemSigns.iterator();
+                    while (itemSignsItr.hasNext()) {
+                        if (itemSignsItr.next().sign.equals(sign)) {
+                            itemSignsItr.remove();
                         }
                     }
-                } else if (line.equals("Items Earned:")) {
-                    Iterator<TurnstileSign> itr = TurnstileMain.itemSigns.iterator();
-                    while (itr.hasNext()) {
-                        if (itr.next().sign.equals(sign)) {
-                            itr.remove();
-                        }
-                    }
+                    break;
+                default:
+                    return;
                 }
             }
 
             TurnstileMain.saveSigns();
 
-        default: break;
+        default:
+            break;
         }
     }
 
@@ -412,13 +411,13 @@ public class TurnstileListener implements Listener {
 
         //Check if this is a Turnstile sign to be linked
         String line = event.getLine(0).toLowerCase();
-        if (!line.equals(TurnstileCommand.command + " link")) {
+        if (!line.equals("ts link")) {
             return;
         }
 
         //Cancel if the Player does not have permission to create Turnstile Signs
         Player player = event.getPlayer();
-        if (!TurnstileMain.hasPermission(player, "sign")) {
+        if (!player.hasPermission("sign")) {
             player.sendMessage(TurnstileMessages.permission);
             return;
         }
@@ -427,188 +426,100 @@ public class TurnstileListener implements Listener {
         line = event.getLine(1);
         Turnstile turnstile = TurnstileMain.findTurnstile(line);
         if (turnstile == null) {
-            player.sendMessage("Turnstile "+line+" does not exsist.");
+            player.sendMessage("Turnstile " + line + " does not exsist.");
             return;
         }
 
-        Type type;
-        Sign sign = (Sign)event.getBlock().getState();
-
-        //Return if the third line is not a valid type
-        line = event.getLine(2).toUpperCase();
-        if (line.isEmpty()) {
-            event.setLine(0, line);
-            event.setLine(1, line);
-        } else {
-            try {
-                type = Type.valueOf(line);
-            } catch (Exception notEnum) {
-                player.sendMessage(line+" is not a valid type. Valid types: "
-                        + "NAME, PRICE, COST, COUNTER, MONEY, ITEMS, ACCESS,"
-                        + " FREE, LOCKED");
-                return;
-            }
-
-            switch (type) {
-            case NAME:
-                event.setLine(0, "Turnstile:");
-                event.setLine(1, turnstile.name);
-                break;
-
-            case PRICE:
-                event.setLine(0, "Price:");
-                event.setLine(1, Econ.format(turnstile.price));
-                break;
-
-            case COST:
-                event.setLine(0, "Cost:");
-                ItemStack item = turnstile.items.getFirst().getItem();
-                if (item != null)
-                    event.setLine(1, item.getAmount() + " of "
-                                        + item.getType().name());
-                break;
-
-            case COUNTER:
-                event.setLine(0, "Player Count:");
-                event.setLine(1, "0");
-
-                TurnstileMain.counterSigns.add(new TurnstileSign(sign, turnstile, 1));
-                TurnstileMain.saveSigns();
-                break;
-
-            case MONEY:
-                event.setLine(0, "Money Earned:");
-                event.setLine(1, Econ.format(turnstile.moneyEarned));
-
-                TurnstileMain.moneySigns.add(new TurnstileSign(sign, turnstile, 1));
-                TurnstileMain.saveSigns();
-                break;
-
-            case ITEMS:
-                event.setLine(0, "Items Earned:");
-                event.setLine(1, String.valueOf(turnstile.itemsEarned));
-
-                TurnstileMain.itemSigns.add(new TurnstileSign(sign, turnstile, 1));
-                TurnstileMain.saveSigns();
-                break;
-
-            case ACCESS:
-                event.setLine(0, "Access:");
-
-                if (turnstile.access == null) {
-                    event.setLine(1, "public");
-                } else if (turnstile.access.isEmpty()) {
-                    event.setLine(1, "private");
-                } else {
-                    String access = turnstile.access.toString();
-                    event.setLine(1, access.substring(1, access.length() - 1));
-                }
-
-                break;
-
-            case STATUS:
-                event.setLine(0, "Currently:");
-                event.setLine(1, "open");
-
-                //Start the tickListener for the Sign
-                TurnstileSign tsSign = new TurnstileSign(sign, turnstile, 1);
-                TurnstileMain.statusSigns.put(tsSign, tsSign.tickListener());
-
-                break;
-
-            default: return;
-            }
-        }
-
-        //Return if the fourth line is not a valid type
-        line = event.getLine(3).toUpperCase();
-        if (line.isEmpty()) {
-            event.setLine(2, line);
-            event.setLine(3, line);
-        } else {
-            try {
-                type = Type.valueOf(line);
-            } catch (Exception notEnum) {
-                player.sendMessage(line+" is not a valid type. Valid types: "
-                        + "NAME, PRICE, COST, COUNTER, MONEY, ITEMS,"
-                        + " ACCESS, STATUS");
-
-                TurnstileMain.saveSigns();
-                return;
-            }
-
-            switch (type) {
-            case NAME:
-                event.setLine(2, "Turnstile:");
-                event.setLine(3, turnstile.name);
-                break;
-
-            case PRICE:
-                event.setLine(2, "Price:");
-                event.setLine(3, Econ.format(turnstile.price));
-                break;
-
-            case COST:
-                event.setLine(2, "Cost:");
-                ItemStack item = turnstile.items.getFirst().getItem();
-                if (item != null) {
-                    event.setLine(3, item.getAmount() + " of "
-                                        + item.getType().name());
-                }
-                break;
-
-            case COUNTER:
-                event.setLine(2, "Player Count:");
-                event.setLine(3, "0");
-
-                TurnstileMain.counterSigns.add(new TurnstileSign(sign, turnstile, 3));
-                break;
-
-            case MONEY:
-                event.setLine(2, "Money Earned:");
-                event.setLine(3, Econ.format(turnstile.moneyEarned));
-
-                TurnstileMain.moneySigns.add(new TurnstileSign(sign, turnstile, 3));
-                TurnstileMain.saveSigns();
-                break;
-
-            case ITEMS:
-                event.setLine(2, "Items Earned:");
-                event.setLine(3, String.valueOf(turnstile.itemsEarned));
-
-                TurnstileMain.itemSigns.add(new TurnstileSign(sign, turnstile, 3));
-                TurnstileMain.saveSigns();
-                break;
-
-            case ACCESS:
-                event.setLine(2, "Access:");
-
-                if (turnstile.access == null) {
-                    event.setLine(3, "public");
-                } else if (turnstile.access.isEmpty()) {
-                    event.setLine(3, "private");
-                } else {
-                    String access = turnstile.access.toString();
-                    event.setLine(3, access.substring(1, access.length() - 1));
-                }
-
-                break;
-
-            case STATUS:
-                event.setLine(2, "Currently:");
-                event.setLine(3, "open");
-
-                //Start the tickListener for the Sign
-                TurnstileSign tsSign = new TurnstileSign(sign, turnstile, 3);
-                TurnstileMain.statusSigns.put(tsSign, tsSign.tickListener());
-
-                TurnstileMain.saveSigns();
-                break;
-
-            default: break;
-            }
-        }
+        handleType(event, turnstile, FIRST_TYPE_LOCATION);
+        handleType(event, turnstile, SECOND_TYPE_LOCATION);
 
         TurnstileMain.saveSigns();
+    }
+
+    private static void handleType(SignChangeEvent event, Turnstile turnstile, int lineNumber) {
+        Sign sign = (Sign) event.getBlock().getState();
+        String line = event.getLine(lineNumber).toUpperCase();
+        lineNumber = lineNumber == FIRST_TYPE_LOCATION ? 0 : 2; //2 -> {0, 1} | 3 -> {2, 3}
+
+        switch (line) {
+        case "NAME":
+            event.setLine(lineNumber, "Turnstile:");
+            event.setLine(lineNumber + 1, trim(turnstile.name));
+            break;
+
+        case "PRICE":
+            event.setLine(lineNumber, "Price:");
+            event.setLine(lineNumber + 1, trim(Econ.format(turnstile.price)));
+            break;
+
+        case "COST":
+            event.setLine(lineNumber, "Cost:");
+            if (turnstile.items.size() > 0) {
+                String name = Turnstile.getItemName(turnstile.items.get(0));
+                event.setLine(lineNumber + 1, trim(name));
+            }
+            break;
+
+        case "COUNTER":
+            event.setLine(lineNumber, "Player Count:");
+            event.setLine(lineNumber + 1, "0");
+
+            TurnstileMain.counterSigns.add(new TurnstileSign(sign, turnstile, 3));
+            break;
+
+        case "MONEY":
+            event.setLine(lineNumber, "Money Earned:");
+            event.setLine(lineNumber + 1, trim(Econ.format(turnstile.moneyEarned)));
+
+            TurnstileMain.moneySigns.add(new TurnstileSign(sign, turnstile, 3));
+            TurnstileMain.saveSigns();
+            break;
+
+        case "ITEMS":
+            event.setLine(lineNumber, "Items Earned:");
+            event.setLine(lineNumber + 1, String.valueOf(turnstile.itemsEarned));
+
+            TurnstileMain.itemSigns.add(new TurnstileSign(sign, turnstile, 3));
+            TurnstileMain.saveSigns();
+            break;
+
+        case "ACCESS":
+            event.setLine(lineNumber, "Access:");
+
+            if (turnstile.access == null) {
+                event.setLine(lineNumber + 1, "public");
+            } else if (turnstile.access.isEmpty()) {
+                event.setLine(lineNumber + 1, "private");
+            } else {
+                String access = turnstile.access.split(" ")[0];
+                event.setLine(lineNumber + 1, trim(access));
+            }
+
+            break;
+
+        case "STATUS":
+            event.setLine(lineNumber, "Currently:");
+            event.setLine(lineNumber + 1, "open");
+
+            //Start the tickListener for the Sign
+            TurnstileSign tsSign = new TurnstileSign(sign, turnstile, 3);
+            TurnstileMain.statusSigns.put(tsSign, tsSign.tickListenerTask());
+            break;
+
+        case "":
+            event.setLine(lineNumber, "");
+            event.setLine(lineNumber + 1, "");
+            break;
+
+        default:
+            event.getPlayer().sendMessage(line + " is not a valid type. Valid types: "
+                    + "NAME, PRICE, COST, COUNTER, MONEY, ITEMS,"
+                    + " ACCESS, STATUS");
+            break;
+        }
+    }
+
+    private static String trim(String line) {
+        return line.length() > SIGN_MAX_LENGTH ? line.substring(0, SIGN_MAX_LENGTH - 1) : line;
     }
 }

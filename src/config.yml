@@ -1,0 +1,68 @@
+#Config file for Turnstile
+#Plugin made by Codisimus
+
+
+################## DEFAULTS ##################
+
+Default:
+    #The amount of time (in seconds) the Turnstile will stay open
+    #If set to 0, the Turnstile will not AutoClose
+    DefaultAutoCloseTimer: 10
+
+    #Players will not be able to pass the wrong way through a One Way Turnstile
+    OneWayByDefault: true
+
+    #Players will not be charged until they walk through the Turnstile if it is set to No Fraud mode
+    NoFraud: false
+
+
+################## MESSAGES ##################
+
+##These are the messages that Players will see while using PhatLoots
+##Blank messages will not be shown
+##Use & to specify colors for messages (ex. &3hi&a.)
+##<time> will be replaced by the amount of time remaining
+##<price> will be replaced by the price of the Turnstile
+Messages:
+    Permission: '&4You do not have permission to do that.'
+    Locked: '&4This Turnstile is currently locked.'
+    Free: '&4This Turnstile is currently free.'
+    CorrectItem: '&5Items accepted, Turnstile opened!'
+    WrongItem: '&4Correct item not found!'
+    ChestInUse: '&4That Chest is being used by someone else right now'
+    TurnstileOccupied: '&4Only one Player can go through a Turnstile at a time'
+    DisplayCost: '&5This Turnstile costs &6<price>&5 to use'
+    Open: '&6<price>&5 deducted to use the turnstile'
+    NotEnoughMoney: '&4You do not have enough money to use the turnstile'
+    BalanceCleared: '&5Balance cleared to use the turnstile'
+    Private: '&4That is a private Turnstile!'
+    OneWay: '&4You cannot enter a Turnstile from the wrong direction!'
+    NoFraud: '&4Someone else is using that at the moment.'
+    CooldownWhenPrivate: '&4That area is private for &6<time>&4!'
+    Cooldown: '&5You may continue to use this Turnstile free of charge for &6<time>&5!'
+
+
+################## OTHER ##################
+
+##Players need permission to use restricted Turnstiles
+##'turnstile.use.Station' or 'turnstile.use.*' would be needed to use Turnstile Station if it is restricted
+##In order to set this feature you must remove the empty square brackets []
+RestrictAll: false
+RestrictedPhatLoots: []
+#    - 'Donator'
+#    - 'Admin'
+#    - 'Station'
+
+#This is how much it will cost a Player to make a Turnstile
+CostToMakeTurnstile: 0
+
+#This feature will prevent Players from bypassing Turnstiles using EnderPearls
+#This may cause slight lag when Turnstiles are open
+EnderPearlProtection: false
+
+#This is a Beta feature which is not yet completed
+#Set to true in order to use Citzens' NPCs to charge items for Turnstiles
+CitizensSupport: false
+
+#Debug messages will be printed to the Server log when a Player attempts to use Turnstiles
+Debug: false

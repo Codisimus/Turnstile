@@ -7,6 +7,8 @@ import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 /**
  * Prevents Players from bypassing Turnstiles using Ender Pearls
@@ -14,7 +16,7 @@ import org.bukkit.event.entity.ProjectileLaunchEvent;
  * @author Codisimus
  */
 public class EnderPearlProtection implements Listener {
-    private static HashMap<Projectile, Integer> pearls = new HashMap<Projectile, Integer>();
+    private static HashMap<Projectile, BukkitTask> tasks = new HashMap<>();
 
     @EventHandler (ignoreCancelled = true)
     public void onEnderPearlThrow(ProjectileLaunchEvent event) {
@@ -34,7 +36,7 @@ public class EnderPearlProtection implements Listener {
             }
         }
 
-        int id = TurnstileMain.server.getScheduler().scheduleSyncRepeatingTask(TurnstileMain.plugin, new Runnable() {
+        BukkitTask task = new BukkitRunnable() {
             @Override
     	    public void run() {
                 Location location = projectile.getLocation();
@@ -53,14 +55,16 @@ public class EnderPearlProtection implements Listener {
                     }
                 }
     	    }
-    	}, 1, 1);
+    	}.runTaskTimer(TurnstileMain.plugin, 1, 1);
 
-        pearls.put(projectile, id);
+        tasks.put(projectile, task);
     }
 
     private static void cancelTask(Projectile projectile) {
-        TurnstileMain.server.getScheduler().cancelTask(pearls.get(projectile));
+        BukkitTask task = tasks.remove(projectile);
+        if (task != null) {
+            task.cancel();
+        }
         projectile.remove();
-        pearls.remove(projectile);
     }
 }
