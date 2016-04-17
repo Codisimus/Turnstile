@@ -15,7 +15,7 @@ after_deploy:
       cd $HOME
       git config --global user.email "travis@travis-ci.org"
       git config --global user.name "travis-ci"
-      git clone --quiet --branch=gh-pages https://${AUTH_TOKEN}@github.com/Codisimus/PhatLoots gh-pages > /dev/null
+      git clone --quiet --branch=gh-pages https://${AUTH_TOKEN}@github.com/Codisimus/Turnstile gh-pages > /dev/null
 
       cd gh-pages
       git rm -rf ./javadoc
@@ -32,13 +32,13 @@ before_deploy:
   - git config --global user.name "Travis CI"
   - export GIT_TAG=dev-build-$TRAVIS_BUILD_NUMBER
   - git tag $GIT_TAG -a -m "Generated tag from TravisCI build $TRAVIS_BUILD_NUMBER on $(date -u "+%Y-%m-%d-%H-%M-%S")"
-  - git push --quiet https://$AUTH_TOKEN@github.com/Codisimus/PhatLoots $GIT_TAG
+  - git push --quiet https://$AUTH_TOKEN@github.com/Codisimus/Turnstile $GIT_TAG
 
 deploy:
   - provider: releases
     prerelease: true
     api_key: $AUTH_TOKEN
-    file: "dist/PhatLoots.jar"
+    file: "dist/Turnstile.jar"
     skip_cleanup: true
     on:
       branch: master
@@ -46,7 +46,7 @@ deploy:
   - provider: releases
     prerelease: false
     api_key: $AUTH_TOKEN
-    file: "dist/PhatLoots.jar"
+    file: "dist/Turnstile.jar"
     skip_cleanup: true
     on:
       tags: true
