@@ -5,17 +5,18 @@ import java.util.TreeMap;
 import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
+import org.bukkit.configuration.serialization.SerializableAs;
 
 /**
  * A TurnstileButton is a Block location and the Type ID of the Block
  *
  * @author Codisimus
  */
+@SerializableAs("TurnstileButton")
 public class TurnstileButton implements ConfigurationSerializable {
     private static TurnstileButton last;
     public String world;
     public int x, y, z;
-    public int type;
 
     /**
      * Constructs a new Button with the given Block
@@ -27,7 +28,6 @@ public class TurnstileButton implements ConfigurationSerializable {
         x = block.getX();
         y = block.getY();
         z = block.getZ();
-        type = block.getTypeId();
     }
 
     /**
@@ -83,7 +83,7 @@ public class TurnstileButton implements ConfigurationSerializable {
      */
     @Override
     public String toString() {
-        return world + "'" + x + "'" + y + "'" + z + "'" + type;
+        return world + "'" + x + "'" + y + "'" + z;
     }
 
     @Override

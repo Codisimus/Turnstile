@@ -16,7 +16,7 @@ import org.bukkit.scheduler.BukkitTask;
  * @author Codisimus
  */
 public class EnderPearlProtection implements Listener {
-    private static HashMap<Projectile, BukkitTask> tasks = new HashMap<>();
+    private static final HashMap<Projectile, BukkitTask> tasks = new HashMap<>();
 
     @EventHandler (ignoreCancelled = true)
     public void onEnderPearlThrow(ProjectileLaunchEvent event) {

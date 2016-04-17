@@ -11,7 +11,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 /**
  * Listens for Turnstile NPC interactions
  *
- * @author Cody
+ * @author Codisimus
  */
 public class NPCListener implements Listener {
 
@@ -44,7 +44,7 @@ public class NPCListener implements Listener {
         //Return if the Player does not have permission to open Turnstiles
         Player player = event.getPlayer();
         if (!player.hasPermission("turnstile.open")) {
-            player.sendMessage(TurnstileMessages.permission);
+            player.sendMessage(TurnstileConfig.permission);
             return;
         }
 
@@ -57,13 +57,13 @@ public class NPCListener implements Listener {
 
         //Return if the Turnstile is locked
         if (turnstile.isLocked(time)) {
-            player.sendMessage(TurnstileMessages.locked);
+            player.sendMessage(TurnstileConfig.locked);
             return;
         }
 
         //Open Turnstile and Return without charging if the Turnstile is free
         if (turnstile.isFree(time)) {
-            player.sendMessage(TurnstileMessages.free);
+            player.sendMessage(TurnstileConfig.free);
             turnstile.open(null);
             return;
         }

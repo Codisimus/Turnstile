@@ -1,10 +1,9 @@
 package com.codisimus.plugins.turnstile;
 
 import com.codisimus.plugins.turnstile.CommandHandler.CodCommand;
-import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.Map;
 import net.citizensnpcs.api.CitizensAPI;
 import net.citizensnpcs.api.npc.NPC;
@@ -22,6 +21,7 @@ import org.bukkit.inventory.ItemStack;
  * @author Codisimus
  */
 public class TurnstileCommand {
+    private static final EnumSet<Material> SEE_THROUGH = EnumSet.of(Material.AIR);
 
     @CodCommand(
         command = "make",
@@ -39,7 +39,7 @@ public class TurnstileCommand {
             return true;
         }
 
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         switch (block.getType()) {
         case FENCE:
         case TRAP_DOOR:
@@ -61,7 +61,7 @@ public class TurnstileCommand {
         int price = TurnstileConfig.cost;
         if (price > 0 && (!player.hasPermission("makefree"))) {
             //Cancel if the Player could not afford it
-            if (!Econ.charge(player.getName(), null, price)) {
+            if (!Econ.charge(player, null, price)) {
                 player.sendMessage("You do not have enough money to make the Turnstile");
                 return true;
             }
@@ -85,7 +85,7 @@ public class TurnstileCommand {
         permission = "turnstile.make"
     )
     public boolean rename(Player player, String name) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -124,7 +124,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.owner"
     )
     public boolean owner(Player player, OfflinePlayer newOwner) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -156,7 +156,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.bank"
     )
     public boolean bank(Player player, String bankName) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -188,7 +188,7 @@ public class TurnstileCommand {
         permission = "turnstile.make"
     )
     public boolean link(Player player, Turnstile turnstile) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         switch (block.getType()) {
         case CHEST:
         case STONE_PLATE:
@@ -241,7 +241,7 @@ public class TurnstileCommand {
         permission = "turnstile.make"
     )
     public boolean unlink(Player player) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
 
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
@@ -319,7 +319,7 @@ public class TurnstileCommand {
         permission = "turnstile.info"
     )
     public boolean info(Player player, String name) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -395,7 +395,7 @@ public class TurnstileCommand {
         permission = "turnstile.collect"
     )
     public boolean collect(Player player) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
 
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
@@ -452,7 +452,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.access"
     )
     public boolean access(Player player, String node) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -483,7 +483,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.free"
     )
     public boolean free(Player player, int start, int end) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -517,7 +517,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.locked"
     )
     public boolean locked(Player player, int start, int end) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -550,7 +550,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.cooldown"
     )
     public boolean cooldown(Player player) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -578,7 +578,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.nofraud"
     )
     public boolean noFraud(Player player, boolean bool) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -622,7 +622,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.price"
     )
     public boolean price(Player player) {
-        Block block = player.getTargetBlock(null, 10);
+        Block block = player.getTargetBlock(SEE_THROUGH, 10);
         Turnstile turnstile = TurnstileMain.findTurnstile(block);
         if (turnstile == null) {
             return false;
@@ -665,7 +665,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.price"
     )
     public boolean addHand(Player player, String[] args) {
-        setItem(player, false, player.getItemInHand(), args);
+        setItem(player, false, player.getEquipment().getItemInMainHand(), args);
         return true;
     }
 
@@ -716,7 +716,7 @@ public class TurnstileCommand {
         permission = "turnstile.set.price"
     )
     public boolean removeHand(Player player, String[] args) {
-        setItem(player, false, player.getItemInHand(), args);
+        setItem(player, false, player.getEquipment().getItemInMainHand(), args);
         return true;
     }
 
@@ -802,7 +802,7 @@ public class TurnstileCommand {
             }
         } else {
             if (sender instanceof Player) {
-                turnstile = TurnstileMain.findTurnstile(((Player) sender).getTargetBlock(null, 10));
+                turnstile = TurnstileMain.findTurnstile(((Player) sender).getTargetBlock(SEE_THROUGH, 10));
             } else {
                 sender.sendMessage("§4You cannot do this from the console!");
                 return;

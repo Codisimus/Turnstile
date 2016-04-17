@@ -17,6 +17,7 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.scheduler.BukkitTask;
 
 /**
@@ -28,9 +29,9 @@ public class TurnstileListener implements Listener {
     private static final int SIGN_MAX_LENGTH = 20;
     private static final int FIRST_TYPE_LOCATION = 2;
     private static final int SECOND_TYPE_LOCATION = 3;
-    public static LinkedList<Turnstile> openTurnstiles = new LinkedList<>();
-    static HashMap<Player, Block> occupiedTrendulas = new HashMap<>();
-    private static HashMap<Player, Block> openChests = new HashMap<>();
+    public static final LinkedList<Turnstile> openTurnstiles = new LinkedList<>();
+    static final HashMap<Player, Block> occupiedTrendulas = new HashMap<>();
+    private static final HashMap<Player, Block> openChests = new HashMap<>();
 
     /**
      * Listens for Players attempting to open Turnstiles
@@ -39,7 +40,7 @@ public class TurnstileListener implements Listener {
      */
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.isCancelled()) {
+        if (event.isCancelled() || event.getHand() != EquipmentSlot.HAND) {
             return;
         }
 
@@ -85,7 +86,7 @@ public class TurnstileListener implements Listener {
                 Block using = openChests.get(chestOpener);
                 if (using == null || !using.equals(chestBlock)) {
                     event.setCancelled(true);
-                    chestOpener.sendMessage(TurnstileMessages.inUse);
+                    chestOpener.sendMessage(TurnstileConfig.inUse);
                 }
             } else {
                 openChests.put(chestOpener, block);
@@ -108,7 +109,7 @@ public class TurnstileListener implements Listener {
 
             Player player = event.getPlayer();
             if (!player.hasPermission("turnstile.open")) {
-                player.sendMessage(TurnstileMessages.permission);
+                player.sendMessage(TurnstileConfig.permission);
                 return;
             }
 
@@ -119,13 +120,13 @@ public class TurnstileListener implements Listener {
             long time = player.getWorld().getTime();
 
             if (turnstile.isLocked(time)) {
-                player.sendMessage(TurnstileMessages.locked);
+                player.sendMessage(TurnstileConfig.locked);
                 return;
             }
 
             //Open Turnstile and Return without charging if the Turnstile is free
             if (turnstile.isFree(time)) {
-                player.sendMessage(TurnstileMessages.free);
+                player.sendMessage(TurnstileConfig.free);
                 turnstile.open(block);
                 return;
             }
@@ -134,9 +135,9 @@ public class TurnstileListener implements Listener {
                 turnstile.open(block);
 
                 if (turnstile.price == 0) {
-                    player.sendMessage(TurnstileMessages.free);
+                    player.sendMessage(TurnstileConfig.free);
                 } else {
-                    player.sendMessage(TurnstileMessages.displayCost.replace("<price>",
+                    player.sendMessage(TurnstileConfig.displayCost.replace("<price>",
                             "" + Econ.economy.format(turnstile.price)));
                 }
             } else if (turnstile.checkBalance(player)) {
@@ -230,7 +231,7 @@ public class TurnstileListener implements Listener {
                 //Send the Player back to the previous Block if they entered the Turnstile backwards
                 if (turnstile.oneWay && !turnstile.checkOneWay(from.getBlock())) {
                     event.setTo(pushBackTo);
-                    player.sendMessage(TurnstileMessages.oneWay);
+                    player.sendMessage(TurnstileConfig.oneWay);
                     return;
                 }
 
@@ -239,7 +240,7 @@ public class TurnstileListener implements Listener {
                         && (!occupiedTrendulas.containsKey(player)
                         || !occupiedTrendulas.get(player).equals(toBlock))) {
                     event.setTo(pushBackTo);
-                    player.sendMessage(TurnstileMessages.occupied);
+                    player.sendMessage(TurnstileConfig.occupied);
                     return;
                 }
 
@@ -418,7 +419,7 @@ public class TurnstileListener implements Listener {
         //Cancel if the Player does not have permission to create Turnstile Signs
         Player player = event.getPlayer();
         if (!player.hasPermission("sign")) {
-            player.sendMessage(TurnstileMessages.permission);
+            player.sendMessage(TurnstileConfig.permission);
             return;
         }
 

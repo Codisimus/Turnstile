@@ -14,7 +14,6 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
-import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.configuration.serialization.SerializableAs;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -31,9 +30,6 @@ import org.bukkit.scheduler.BukkitRunnable;
  */
 @SerializableAs("Turnstile")
 public class Turnstile implements ConfigurationSerializable {
-    static {
-        ConfigurationSerialization.registerClass(Turnstile.class, "Turnstile");
-    }
     static String current;
     static String last;
     static boolean debug;
@@ -126,7 +122,7 @@ public class Turnstile implements ConfigurationSerializable {
             HashSet<Integer> delete = findItem(inventory, item);
 
             if (delete.isEmpty()) {
-                player.sendMessage(TurnstileMessages.wrong);
+                player.sendMessage(TurnstileConfig.wrong);
                 return;
             }
 
@@ -139,7 +135,7 @@ public class Turnstile implements ConfigurationSerializable {
         }
 
         //Increment earned and open the Turnstile
-        player.sendMessage(TurnstileMessages.correct);
+        player.sendMessage(TurnstileConfig.correct);
         open(null);
         itemsEarned++;
 
@@ -206,7 +202,7 @@ public class Turnstile implements ConfigurationSerializable {
                 TurnstileMain.logger.warning(name + " Debug: " + playerName
                                     + " is trying to enter a Turnstile that they did no pay for");
             }
-            player.sendMessage(TurnstileMessages.noFraud);
+            player.sendMessage(TurnstileConfig.noFraud);
             return false;
         }
 
@@ -240,8 +236,8 @@ public class Turnstile implements ConfigurationSerializable {
                                     + "'s account will be set to 0");
             }
 
-            Econ.economy.withdrawPlayer(playerName, Econ.economy.getBalance(playerName));
-            player.sendMessage(TurnstileMessages.balanceCleared);
+            Econ.economy.withdrawPlayer(player, Econ.economy.getBalance(player));
+            player.sendMessage(TurnstileConfig.balanceCleared);
             return true;
         }
 
@@ -254,13 +250,13 @@ public class Turnstile implements ConfigurationSerializable {
         }
 
         //Return false if the Player could not afford the transaction
-        if (!Econ.charge(playerName, owner, price)) {
+        if (!Econ.charge(player, owner, price)) {
             if (debug) {
                 TurnstileMain.logger.warning(name + " Debug: " + playerName
                                     + " cannot afford " + Econ.format(price));
             }
 
-            player.sendMessage(TurnstileMessages.notEnoughMoney);
+            player.sendMessage(TurnstileConfig.notEnoughMoney);
             if (!addedToCooldown.isEmpty()) {
                 onCooldown.remove(addedToCooldown);
                 addedToCooldown = "";
@@ -269,7 +265,7 @@ public class Turnstile implements ConfigurationSerializable {
         }
 
         //Increment earned by the price
-        player.sendMessage(TurnstileMessages.open.replace("<price>", Econ.format(price)));
+        player.sendMessage(TurnstileConfig.open.replace("<price>", Econ.format(price)));
         moneyEarned += price;
 
         //Increment the amount of money earned on linked Signs
@@ -309,7 +305,7 @@ public class Turnstile implements ConfigurationSerializable {
             }
 
             if (!isOwner(player)) {
-                player.sendMessage(TurnstileMessages.privateTurnstile);
+                player.sendMessage(TurnstileConfig.privateTurnstile);
                 return false;
             }
         default: //Turnstile has limited access
@@ -334,7 +330,7 @@ public class Turnstile implements ConfigurationSerializable {
                 if (debug) {
                     TurnstileMain.logger.warning(name + " Debug: " + playerName + " is not on the access list");
                 }
-                player.sendMessage(TurnstileMessages.privateTurnstile);
+                player.sendMessage(TurnstileConfig.privateTurnstile);
             }
         }
 
@@ -350,7 +346,7 @@ public class Turnstile implements ConfigurationSerializable {
                     String timeRemaining = getTimeRemaining(Long.parseLong(lastUse));
                     if (timeRemaining == null || !timeRemaining.equals("0")) { //Still cooling down
                         if (onCooldown.size() >= amountPerCooldown) { //Full amount is already on cooldown
-                            player.sendMessage(TurnstileMessages.cooldownPrivate.replace("<time>", timeRemaining));
+                            player.sendMessage(TurnstileConfig.cooldownPrivate.replace("<time>", timeRemaining));
                             return false;
                         } else {
                             time = lastUse;
@@ -362,7 +358,7 @@ public class Turnstile implements ConfigurationSerializable {
             } else {
                 String timeRemaining = getTimeRemaining(Long.parseLong(onCooldown.getProperty(playerName)));
                 if (timeRemaining == null || !timeRemaining.equals("0")) { //Still cooling down
-                    player.sendMessage(TurnstileMessages.cooldown.replace("<time>", timeRemaining));
+                    player.sendMessage(TurnstileConfig.cooldown.replace("<time>", timeRemaining));
                     return true;
                 }
                 onCooldown.remove(playerName);
@@ -552,8 +548,8 @@ public class Turnstile implements ConfigurationSerializable {
         }
 
         //Return true if Player is the owner of the Turnstile's bank
-        if (owner.startsWith("bank:") && Econ.economy.isBankOwner(
-                owner.substring(5), playerName).transactionSuccess()) {
+        if (sender instanceof Player && owner.startsWith("bank:") && Econ.economy.isBankOwner(
+                owner.substring(5), (Player) sender).transactionSuccess()) {
             return true;
         }
 

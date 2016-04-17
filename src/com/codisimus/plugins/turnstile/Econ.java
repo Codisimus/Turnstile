@@ -2,6 +2,7 @@ package com.codisimus.plugins.turnstile;
 
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.plugin.RegisteredServiceProvider;
 
 /**
@@ -20,7 +21,7 @@ public class Econ {
      * @param amount The amount that will be charged
      * @return True if the transaction was successful
      */
-    public static boolean charge(String player, String owner, double amount) {
+    public static boolean charge(OfflinePlayer player, String owner, double amount) {
         if (Turnstile.debug) {
             TurnstileMain.logger.warning("Charge Debug: Sending "
                                 + format(amount) + " to " + owner
@@ -64,7 +65,7 @@ public class Econ {
             }
         } else {
             //Send money to a Player
-            economy.depositPlayer(owner, amount);
+            economy.depositPlayer(Bukkit.getOfflinePlayer(owner), amount);
             if (Turnstile.debug) {
                 TurnstileMain.logger.warning("Charge Debug: " + format(amount)
                                     + " has been given to " + owner);

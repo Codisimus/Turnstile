@@ -13,11 +13,11 @@ import org.bukkit.conversations.Prompt;
 
 /**
  *
- * @author Cody
+ * @author Codisimus
  */
 public class CooldownConvo implements ConversationAbandonedListener {
-    private ConversationFactory cFactory;
-    private Turnstile turnstile;
+    private final ConversationFactory cFactory;
+    private final Turnstile turnstile;
 
     public CooldownConvo(CommandSender commandSender, Turnstile turnstile) {
         this.cFactory = new ConversationFactory(TurnstileMain.plugin)

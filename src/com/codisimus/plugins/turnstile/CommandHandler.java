@@ -4,6 +4,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.logging.Level;
@@ -30,10 +31,18 @@ public class CommandHandler implements CommandExecutor {
         }
     }
 
-    private static final Comparator<CodCommand> COMPARATOR = new Comparator() {
+    private static final Comparator<Method> METHOD_COMPARATOR = new Comparator() {
         @Override
         public int compare(Object o1, Object o2) {
-            return ((Double) ((CodCommand) o1).weight()).compareTo(((CodCommand) o2).weight());
+            return Double.compare(((Method) o1).getAnnotation(CodCommand.class).weight(),
+                                  ((Method) o2).getAnnotation(CodCommand.class).weight());
+        }
+    };
+
+    private static final Comparator<CodCommand> CODCOMMAND_COMPARATOR = new Comparator() {
+        @Override
+        public int compare(Object o1, Object o2) {
+            return Double.compare(((CodCommand) o1).weight(), ((CodCommand) o2).weight());
         }
     };
 
@@ -50,16 +59,17 @@ public class CommandHandler implements CommandExecutor {
         int maxArgs() default -1;
     }
 
-    private boolean groupedCommands;
-    private String parentCommand = null;
-    private LinkedList<CodCommand> metas = new LinkedList<CodCommand>();
-    private HashMap<CodCommand, LinkedList<Method>> methods = new HashMap<CodCommand, LinkedList<Method>>();
-    private HashMap<String, String> aliases = new HashMap<String, String>();
-    private JavaPlugin plugin;
+    private final boolean groupedCommands;
+    private final String parentCommand;
+    private final TreeSet<CodCommand> metas = new TreeSet<>(CODCOMMAND_COMPARATOR);
+    private final HashMap<CodCommand, TreeSet<Method>> methods = new HashMap<>();
+    private final Properties aliases = new Properties();
+    private final JavaPlugin plugin;
 
     public CommandHandler(JavaPlugin plugin) {
         this.plugin = plugin;
         groupedCommands = false;
+        parentCommand = null;
     }
 
     public CommandHandler(JavaPlugin plugin, String commandGroup) {
@@ -68,6 +78,7 @@ public class CommandHandler implements CommandExecutor {
         PluginCommand command = plugin.getCommand(commandGroup);
         if (command == null) {
             plugin.getLogger().warning("CodCommand " + commandGroup + " was not found in plugin.yml");
+            parentCommand = null;
         } else {
             command.setExecutor(this);
             parentCommand = command.getName();
@@ -81,24 +92,12 @@ public class CommandHandler implements CommandExecutor {
      */
     public void registerCommands(Class<?> commandClass) {
         //Find each CodCommand in the class
-        LinkedList<Method> methodlist = new LinkedList<Method>();
         for (Method method : commandClass.getDeclaredMethods()) {
-            if (method.getAnnotation(CodCommand.class) != null) { //Not a CodCommand
-                methodlist.add(method);
+            if (method.getAnnotation(CodCommand.class) == null) {
+                //Not a CodCommand
                 continue;
             }
-        }
 
-        //Sort the methods based on their defined weight
-        Collections.sort(methodlist, new Comparator() {
-            @Override
-            public int compare(Object o1, Object o2) {
-                return Double.compare(((Method) o1).getAnnotation(CodCommand.class).weight(),
-                                      ((Method) o2).getAnnotation(CodCommand.class).weight());
-            }
-        });
-
-        for (Method method : methodlist) {
             //Verify the command returns a boolean
             if (method.getReturnType() == Boolean.class) {
                 plugin.getLogger().warning("CodCommand " + method.getName() + " does not return a boolean");
@@ -117,17 +116,23 @@ public class CommandHandler implements CommandExecutor {
                 command.setAliases(Arrays.asList(annotation.aliases()));
             } else {
                 for (String alias : annotation.aliases()) {
-                    aliases.put(alias, annotation.command());
+                    aliases.setProperty(alias, annotation.command());
                 }
             }
 
-            CodCommand meta = findMeta(annotation.command(), annotation.subcommand());
-            if (meta == null) {
+            CodCommand meta = findMeta(annotation);
+            if (meta == null || CODCOMMAND_COMPARATOR.compare(annotation, meta) < 0) {
+                //This new (or first) meta has highest priority and should thus be the main one
+                TreeSet treeSet;
+                if (meta == null) {
+                    treeSet = new TreeSet<>(METHOD_COMPARATOR);
+                } else {
+                    metas.remove(meta);
+                    treeSet = methods.remove(meta);
+                }
                 meta = annotation;
-                //This is the first (possibly only) method of the command
                 metas.add(meta);
-                Collections.sort(metas, COMPARATOR); //Temporary fix to sort commands
-                methods.put(meta, new LinkedList<Method>());
+                methods.put(meta, treeSet);
             }
             methods.get(meta).add(method);
         }
@@ -153,7 +158,7 @@ public class CommandHandler implements CommandExecutor {
         }
 
         String subcommand = aliases.containsKey(args[0])
-                            ? aliases.get(args[0])
+                            ? aliases.getProperty(args[0])
                             : args[0];
         String arg1 = args.length > 1 ? args[1] : null;
         CodCommand meta = findMeta(subcommand, arg1);
@@ -164,8 +169,8 @@ public class CommandHandler implements CommandExecutor {
             }
             handleCommand(sender, meta, Arrays.copyOfRange(args, index, args.length));
         } else if (subcommand.equals("help")) { //Default 'help' subcommand
-            subcommand = aliases.containsKey(arg1)
-                         ? aliases.get(arg1)
+            subcommand = arg1 != null && aliases.containsKey(arg1)
+                         ? aliases.getProperty(arg1)
                          : arg1;
             switch (args.length) {
             case 2:
@@ -246,7 +251,7 @@ public class CommandHandler implements CommandExecutor {
                     if (ParameterType.getType(requestedParameters[i + 1]) == ParameterType.TURNSTILE) {
                         if (o == null) {
                             if (sender instanceof Player) {
-                                o = TurnstileMain.findTurnstile(((Player) sender).getTargetBlock(null, 10));
+                                o = TurnstileMain.findTurnstile(((Player) sender).getTargetBlock(EnumSet.of(Material.AIR), 10));
                                 i--;
                             }
                             if (o == null) {
@@ -281,7 +286,7 @@ public class CommandHandler implements CommandExecutor {
             }
 
             displayUsage(sender, meta);
-        } catch (Exception ex) {
+        } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             sender.sendMessage("§4An error occured while trying to perform this command. Please notify a server administator.");
             plugin.getLogger().log(Level.SEVERE, "Error occured when executing command " + getCommand(meta), ex);
         }
@@ -306,11 +311,16 @@ public class CommandHandler implements CommandExecutor {
             case DOUBLE:
                 return Double.parseDouble(argument);
             case BOOLEAN:
-                if (argument.equals("true") || argument.equals("on") || argument.equals("yes")) {
+                switch (argument) {
+                case "true":
+                case "on":
+                case "yes":
                     return true;
-                } else if (argument.equals("false") || argument.equals("off") || argument.equals("no")) {
+                case "false":
+                case "off":
+                case "no":
                     return false;
-                } else {
+                default:
                     return null;
                 }
             case MATERIAL:
@@ -349,6 +359,23 @@ public class CommandHandler implements CommandExecutor {
                 if (meta.subcommand().isEmpty() || meta.subcommand().equals(subcommand)) {
                     return meta;
                 }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the meta of the given command
+     *
+     * @param command The command to retrieve the meta for
+     * @param subcommand The subcommand if any
+     * @return The CodCommand or null if none was found
+     */
+    private CodCommand findMeta(CodCommand annotation) {
+        for (CodCommand meta : metas) {
+            if (meta.command().equals(annotation.command())
+                    && meta.subcommand().equals(annotation.subcommand())) {
+                return meta;
             }
         }
         return null;

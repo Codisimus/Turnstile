@@ -7,7 +7,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
-import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.configuration.serialization.SerializableAs;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -20,9 +19,6 @@ import org.bukkit.scheduler.BukkitTask;
  */
 @SerializableAs("TurnstileSign")
 public class TurnstileSign implements ConfigurationSerializable {
-    static {
-        ConfigurationSerialization.registerClass(TurnstileSign.class, "TurnstileSign");
-    }
     private static TurnstileSign last;
     public Sign sign;
     public Turnstile turnstile;

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.bukkit.Material;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
+import org.bukkit.configuration.serialization.SerializableAs;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -14,12 +15,13 @@ import org.bukkit.inventory.ItemStack;
  *
  * @author Codisimus
  */
+@SerializableAs("TurnstileItem")
 public class Item implements ConfigurationSerializable {
     private int id = 0;
     private String name;
     private short durability = -1;
     private int amount = 1;
-    private LinkedList<Enchantment> enchantments = new LinkedList<Enchantment>();
+    private LinkedList<Enchantment> enchantments = new LinkedList<>();
 
     /**
      *
@@ -75,7 +77,7 @@ public class Item implements ConfigurationSerializable {
     }
 
     public LinkedList<Integer> findItem(Inventory inventory) {
-        LinkedList<Integer> flagForDelete = new LinkedList<Integer>();
+        LinkedList<Integer> flagForDelete = new LinkedList<>();
         int total = 0;
 
         //Iterate through the contents of the Chest to look for matching items
@@ -149,7 +151,7 @@ public class Item implements ConfigurationSerializable {
      * @return The String representation of this Item's Enchantments
      */
     public ArrayList<String> enchantmentsToStrings() {
-        ArrayList<String> stringList = new ArrayList<String>();
+        ArrayList<String> stringList = new ArrayList<>();
         for (Enchantment enchantment : enchantments) {
             stringList.add(enchantment.getName());
         }

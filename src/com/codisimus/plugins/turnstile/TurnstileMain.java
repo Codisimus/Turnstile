@@ -1,26 +1,19 @@
 package com.codisimus.plugins.turnstile;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
-import org.bukkit.block.Sign;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.serialization.ConfigurationSerialization;
 import org.bukkit.inventory.DoubleChestInventory;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.plugin.Plugin;
@@ -86,6 +79,10 @@ public class TurnstileMain extends JavaPlugin {
             dir.mkdir();
         }
 
+        ConfigurationSerialization.registerClass(Turnstile.class, "Turnstile");
+        ConfigurationSerialization.registerClass(TurnstileButton.class, "TurnstileButton");
+        ConfigurationSerialization.registerClass(TurnstileSign.class, "TurnstileSign");
+
         loadData();
 
         /* Register Events */
@@ -101,15 +98,6 @@ public class TurnstileMain extends JavaPlugin {
         /* Register the command found in the plugin.yml */
         String command = (String) getDescription().getCommands().keySet().toArray()[0];
         handler = new CommandHandler(this, command);
-
-        Properties version = new Properties();
-        try {
-            version.load(this.getResource("version.properties"));
-        } catch (Exception ex) {
-            logger.warning("version.properties file not found within jar");
-        }
-        logger.info("Turnstile " + this.getDescription().getVersion() + " (Build "
-                    + version.getProperty("Build") + ") is enabled!");
     }
 
     /**
@@ -185,8 +173,7 @@ public class TurnstileMain extends JavaPlugin {
                 statusSigns.put(sign, sign.tickListenerTask());
             }
         } catch (Exception ex) {
-            logger.severe("Unexpected error occured!");
-            ex.printStackTrace();
+            logger.log(Level.SEVERE, "Failed to load signs", ex);
         }
     }
 
@@ -214,8 +201,7 @@ public class TurnstileMain extends JavaPlugin {
             config.set("StatusSigns", statusSigns.keySet());
             config.save(new File(TurnstileMain.dataFolder, "signs.yml"));
         } catch (Exception saveFailed) {
-            logger.severe("Save Failed!");
-            saveFailed.printStackTrace();
+            logger.log(Level.SEVERE, "Failed to save signs", saveFailed);
         }
     }
 
@@ -291,7 +277,8 @@ public class TurnstileMain extends JavaPlugin {
 
         turnstiles.remove(turnstile.name);
 
-        File trash = new File(dataFolder+"/Turnstiles/"+turnstile.name+".properties");
+        File trash = new File(dataFolder + File.separator + "Turnstiles"
+                + File.separator + turnstile.name + ".properties");
         trash.delete();
     }
 
